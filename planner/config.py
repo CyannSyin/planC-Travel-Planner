@@ -13,14 +13,13 @@ from typing import Dict, List, Optional
 class DataPaths:
     """Paths related to raw and processed data.
 
-    数据路径配置（请根据本地环境修改为真实路径）:
     - gowalla_checkins: Gowalla_totalCheckins.txt 原始轨迹文件
     - osm_poi: 预处理后的 OSM POI 列表（CSV/Parquet）
     """
 
     root: Path = Path("data")
     gowalla_checkins: Path = root / "Gowalla_totalCheckins.txt"
-    osm_poi: Path = root / "city_pois_pick.csv"
+    osm_poi: Path = root / "city_pois.csv"
 
 
 @dataclass
@@ -41,6 +40,7 @@ class POIFilterConfig:
         "leisure=park",
     ])  # 优先选择的类别前缀
     max_visit_time_hours: Optional[float] = 6.0  # 每天最大浏览时长（小时），None表示不限制
+    min_visit_time_hours: float = 4.0  # 每天最小浏览时长（小时），确保每天至少有足够的游玩时间
     filter_unknown_names: bool = True  # 是否过滤掉名称为Unknown的POI
 
 

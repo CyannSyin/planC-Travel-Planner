@@ -36,12 +36,15 @@ def experiment_1_poi_clustering(pois: pd.DataFrame) -> Dict[str, ClusteringResul
 def assign_pois_to_days(
     pois: pd.DataFrame, 
     labels,
-    max_visit_time_hours: Optional[float] = None
+    max_visit_time_hours: Optional[float] = None,
+    min_visit_time_hours: Optional[float] = None
 ) -> Dict[int, pd.DataFrame]:
     """Group POIs by cluster label (day).
     
-    Optionally applies maximum visit time constraint by removing POIs that exceed
-    the time limit (sorted by priority/rating).
+    Applies constraints:
+    - Maximum visit time constraint: removes POIs that exceed the time limit
+    - Minimum visit time constraint: ensures each day has at least min_visit_time_hours
+      by redistributing POIs from days that exceed max time or have excess capacity
     
     Returns DataFrames with reset indices (0 to n-1) for each day.
     """
@@ -49,7 +52,9 @@ def assign_pois_to_days(
     pois = pois.copy()
     pois["day"] = labels
     day_groups: Dict[int, pd.DataFrame] = {}
+    unassigned_pois: List[pd.DataFrame] = []  # POIs removed due to max time constraint
     
+    # Step 1: Initial assignment with max time constraint
     for day, group in pois.groupby("day"):
         if day >= 0:
             # Reset index to ensure continuous position indices (0 to n-1)
@@ -69,6 +74,9 @@ def assign_pois_to_days(
                     if cumulative_time + duration <= max_time_min:
                         selected_indices.append(idx)
                         cumulative_time += duration
+                    else:
+                        # Store unassigned POI for potential redistribution
+                        unassigned_pois.append(sorted_df.loc[[idx]])
                 
                 if selected_indices:
                     day_df = sorted_df.loc[selected_indices].reset_index(drop=True)
@@ -77,6 +85,79 @@ def assign_pois_to_days(
                     day_df = sorted_df.head(1).reset_index(drop=True)
             
             day_groups[int(day)] = day_df
+    
+    # Step 2: Apply minimum visit time constraint
+    if min_visit_time_hours is not None and 'duration_min' in pois.columns:
+        min_time_min = min_visit_time_hours * 60.0
+        
+        # Collect all unassigned POIs into a single DataFrame
+        if unassigned_pois:
+            unassigned_df = pd.concat(unassigned_pois, ignore_index=True)
+            unassigned_df = unassigned_df.sort_values('rating', ascending=False)
+        else:
+            unassigned_df = pd.DataFrame()
+        
+        # Check each day and fill if below minimum
+        for day in sorted(day_groups.keys()):
+            day_df = day_groups[day]
+            if 'duration_min' not in day_df.columns:
+                continue
+                
+            total_time = day_df['duration_min'].sum()
+            
+            if total_time < min_time_min:
+                # Need to add more POIs to meet minimum
+                needed_time = min_time_min - total_time
+                
+                # Try to get POIs from unassigned pool
+                added_indices = []
+                cumulative_time = 0.0
+                
+                for idx in unassigned_df.index:
+                    if cumulative_time >= needed_time:
+                        break
+                    duration = float(unassigned_df.loc[idx, 'duration_min'])
+                    if cumulative_time + duration <= needed_time + 30:  # Allow small overflow
+                        added_indices.append(idx)
+                        cumulative_time += duration
+                
+                if added_indices:
+                    # Add POIs to this day
+                    new_pois = unassigned_df.loc[added_indices].copy()
+                    day_df = pd.concat([day_df, new_pois], ignore_index=True)
+                    day_groups[day] = day_df
+                    
+                    # Remove added POIs from unassigned pool
+                    unassigned_df = unassigned_df.drop(added_indices).reset_index(drop=True)
+                else:
+                    # If no unassigned POIs available, try to borrow from other days
+                    # (only if they exceed minimum significantly)
+                    for other_day in sorted(day_groups.keys()):
+                        if other_day == day:
+                            continue
+                        other_df = day_groups[other_day]
+                        if 'duration_min' not in other_df.columns:
+                            continue
+                        other_time = other_df['duration_min'].sum()
+                        
+                        # Only borrow if other day has significantly more than minimum
+                        if other_time > min_time_min + 60:  # At least 1 hour above minimum
+                            # Try to borrow one high-rating POI
+                            other_df_sorted = other_df.sort_values('rating', ascending=False)
+                            for idx in other_df_sorted.index:
+                                duration = float(other_df_sorted.loc[idx, 'duration_min'])
+                                if duration <= needed_time + 30:
+                                    # Borrow this POI
+                                    borrowed = other_df_sorted.loc[[idx]]
+                                    day_df = pd.concat([day_df, borrowed], ignore_index=True)
+                                    day_groups[day] = day_df
+                                    
+                                    # Remove from other day
+                                    other_df = other_df_sorted.drop([idx]).reset_index(drop=True)
+                                    day_groups[other_day] = other_df
+                                    break
+                            break  # Only borrow from one day
+    
     return day_groups
 
 
@@ -191,17 +272,26 @@ def run_all_experiments():
     else:
         best_method = "kmeans"
     labels = cluster_results[best_method].labels
-    # Apply maximum visit time constraint if configured
+    # Apply maximum and minimum visit time constraints if configured
     max_visit_time = CONFIG.poi_filter.max_visit_time_hours
-    day_pois = assign_pois_to_days(pois, labels, max_visit_time_hours=max_visit_time)
+    min_visit_time = CONFIG.poi_filter.min_visit_time_hours
+    day_pois = assign_pois_to_days(
+        pois, 
+        labels, 
+        max_visit_time_hours=max_visit_time,
+        min_visit_time_hours=min_visit_time
+    )
     
     print(f"\nUsing {best_method} clustering result: {len(day_pois)} days")
     if max_visit_time:
         print(f"  (Applied max visit time constraint: {max_visit_time} hours/day)")
+    if min_visit_time:
+        print(f"  (Applied min visit time constraint: {min_visit_time} hours/day)")
     for day in sorted(day_pois.keys()):
         n_pois = len(day_pois[day])
         total_time = day_pois[day]['duration_min'].sum() / 60.0 if 'duration_min' in day_pois[day].columns else 0.0
-        print(f"  Day {day}: {n_pois} POIs ({total_time:.1f} hours)")
+        min_met = "✓" if min_visit_time is None or total_time >= min_visit_time else "✗"
+        print(f"  Day {day}: {n_pois} POIs ({total_time:.1f} hours) {min_met}")
 
     print("\n=== Experiment 2: Daily Route Optimization (NN + 2-opt) ===")
     routes, route_metrics = experiment_2_daily_routes(
