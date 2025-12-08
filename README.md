@@ -507,6 +507,55 @@ print(f"Route length: {metrics.length_km:.2f} km")
 
 ---
 
+## 🧮 Evaluation Guide / 实验结果评估指南
+
+After running experiments (for example with `python -m planner.experiments`), an evaluation summary is:
+
+- **Printed in the console** with overall statistics, route statistics, time statistics, and experiment details.
+- **Saved to** `results/evaluation_summary.csv` for later analysis.
+
+### Key Metrics / 核心评估指标
+
+- **Route efficiency / 路线效率**
+  - **Time efficiency**: visit time / (visit time + travel time), in \[0, 1\], higher is better.
+  - **Backtracking ratio**: actual route length / baseline route length, ≈1.0 is ideal, \<1.0 is better than baseline.
+- **Clustering quality / 聚类质量**
+  - **Silhouette score**: \[-1, 1\], higher is better; \>0.5 is good, \>0.7 is very good.
+- **Behavior alignment / 与真实行为对齐**
+  - **Jaccard similarity**, **Overlap coefficient**: \[0, 1\], higher is better.
+  - **DTW distance**: ≥0, lower is better (sequence more similar).
+
+### Data Cleaning & POI Filters / 数据清洗与 POI 过滤
+
+You can control how POIs are filtered and cleaned in `planner/config.py`, for example:
+
+```python
+# In POIFilterConfig
+CONFIG.poi_filter.filter_unknown_names = True  # Filter POIs whose name is "Unknown"
+CONFIG.poi_filter.max_visit_time_hours = 8.0   # Max visit time per day (hours), or None for no limit
+```
+
+Routing-related time limits can also be configured, e.g.:
+
+```python
+# In RoutingConfig
+CONFIG.routing.max_daily_hours = 10.0          # Total hours per day including travel
+CONFIG.routing.max_visit_time_hours = 8.0      # Pure visit time per day
+```
+
+For programmatic access and saving of evaluation reports, you can use:
+
+```python
+from planner.results_evaluation import evaluate_experiment_results, save_evaluation_report
+
+summary = evaluate_experiment_results(...)
+save_evaluation_report(summary, Path("results/evaluation_summary.csv"), format="csv")
+```
+
+This allows you to export custom CSV/JSON reports and run multiple configurations for comparison.
+
+---
+
 ## 🔧 Extension & Customization / 扩展与定制
 
 ### Adding New Clustering Methods / 添加新的聚类方法

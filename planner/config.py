@@ -20,7 +20,7 @@ class DataPaths:
 
     root: Path = Path("data")
     gowalla_checkins: Path = root / "Gowalla_totalCheckins.txt"
-    osm_poi: Path = root / "city_pois.csv"
+    osm_poi: Path = root / "city_pois_pick.csv"
 
 
 @dataclass
@@ -40,7 +40,7 @@ class POIFilterConfig:
         "historic",
         "leisure=park",
     ])  # 优先选择的类别前缀
-    max_visit_time_hours: Optional[float] = 8.0  # 每天最大浏览时长（小时），None表示不限制
+    max_visit_time_hours: Optional[float] = 6.0  # 每天最大浏览时长（小时），None表示不限制
     filter_unknown_names: bool = True  # 是否过滤掉名称为Unknown的POI
 
 
@@ -63,8 +63,8 @@ class RoutingConfig:
     """
 
     methods: List[str] = field(default_factory=lambda: ["random", "rating", "nn", "two_opt"])
-    max_daily_hours: float = 10.0  # 每天最大游玩时间（小时）
-    max_visit_time_hours: float = 5.0  # 每天最大浏览时长（小时），不包括交通时间
+    max_daily_hours: float = 8.0  # 每天最大游玩时间（小时）
+    max_visit_time_hours: float = 7.0  # 每天最大浏览时长（小时），不包括交通时间
     start_time: str = "09:00"
     end_time: str = "19:00"
 

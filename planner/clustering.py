@@ -173,9 +173,13 @@ def run_hac(pois: pd.DataFrame, k: int) -> ClusteringResult:
 
 def run_spectral(pois: pd.DataFrame, k: int) -> ClusteringResult:
     X = _build_feature_matrix(pois)
+    n_samples = X.shape[0]
+    # Adjust n_neighbors to be at most n_samples - 1 (each point needs at least 1 neighbor)
+    n_neighbors = min(10, max(1, n_samples - 1))
     model = SpectralClustering(
         n_clusters=k,
         affinity="nearest_neighbors",
+        n_neighbors=n_neighbors,
         random_state=42,
     )
     labels = model.fit_predict(X)
