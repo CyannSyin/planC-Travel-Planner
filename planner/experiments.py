@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from .config import CONFIG
-from .data_loader import load_gowalla_checkins, load_osm_pois, filter_pois
+from .data_loader import load_gowalla_checkins, load_osm_pois, load_pois, filter_pois
 from .clustering import ClusteringResult, select_best_clustering
 from .routing import build_route
 from .evaluation import evaluate_route, evaluate_alignment
@@ -243,10 +243,23 @@ def run_all_experiments():
     并在 config 中配置好路径。
     """
 
-    pois_raw = load_osm_pois()
+    # Load POIs from configured source (OSM or LLM)
+    if CONFIG.llm.enabled:
+        print("=== LLM POI Recommendation ===")
+        print(f"City: {CONFIG.llm.city}")
+        print(f"Number of days: {CONFIG.llm.num_days}")
+        if CONFIG.llm.preferences:
+            print(f"Preferences: {CONFIG.llm.preferences}")
+        if CONFIG.llm.interests:
+            print(f"Interests: {', '.join(CONFIG.llm.interests)}")
+        pois_raw = load_pois()
+    else:
+        print("=== Loading OSM POIs ===")
+        pois_raw = load_osm_pois()
+    
     gowalla = load_gowalla_checkins()
 
-    print("=== POI Filtering ===")
+    print("\n=== POI Filtering ===")
     print(f"Total POIs loaded: {len(pois_raw)}")
     
     # Filter POIs to get a reasonable subset

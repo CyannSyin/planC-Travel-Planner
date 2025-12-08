@@ -7,7 +7,6 @@ Experiment 2 — Daily Route Optimization.
 - Nearest Neighbor (NN): 最近邻启发式
 - 2-opt: 在已有路线基础上进行 2-opt 改善
 """
-
 from __future__ import annotations
 
 import random

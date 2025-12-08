@@ -5,6 +5,11 @@ scipy
 requests
 tqdm
 overpy
+python-dotenv
+openai
 # Optional: for OSM data download (uncomment if using osmnx method)
 # osmnx
+# Optional: for other LLM providers
+# anthropic
+# google-generativeai
 

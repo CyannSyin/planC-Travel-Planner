@@ -15,11 +15,13 @@ class DataPaths:
 
     - gowalla_checkins: Gowalla_totalCheckins.txt 原始轨迹文件
     - osm_poi: 预处理后的 OSM POI 列表（CSV/Parquet）
+    - llm_poi_cache: LLM推荐的POI缓存目录
     """
 
     root: Path = Path("data")
     gowalla_checkins: Path = root / "Gowalla_totalCheckins.txt"
     osm_poi: Path = root / "city_pois.csv"
+    llm_poi_cache: Path = root / "llm_pois"
 
 
 @dataclass
@@ -87,6 +89,26 @@ class AblationConfig:
 
 
 @dataclass
+class LLMConfig:
+    """Config for LLM-based POI recommendation.
+    
+    LLM推荐配置：用于通过大语言模型推荐POI。
+    """
+    
+    enabled: bool = False  # 是否启用LLM推荐模式
+    provider: str = "openai"  # LLM提供商: openai, anthropic, google
+    model: str = "gpt-4"  # 模型名称
+    temperature: float = 0.7  # 生成温度 (0.0-2.0)
+    use_cache: bool = True  # 是否使用缓存
+    city: Optional[str] = None  # 目标城市名称
+    num_days: int = 3  # 旅行天数
+    preferences: Optional[str] = None  # 用户偏好描述
+    budget: Optional[str] = None  # 预算水平: budget, mid-range, luxury
+    interests: Optional[List[str]] = None  # 兴趣列表
+    num_pois: Optional[int] = None  # 目标POI数量（None表示自动计算）
+
+
+@dataclass
 class ExperimentConfig:
     """Top-level configuration wrapper.
 
@@ -99,6 +121,7 @@ class ExperimentConfig:
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     alignment: AlignmentConfig = field(default_factory=AlignmentConfig)
     ablation: AblationConfig = field(default_factory=AblationConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
 
 
 # Default global config instance

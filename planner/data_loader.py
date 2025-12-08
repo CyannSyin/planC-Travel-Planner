@@ -15,6 +15,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import pandas as pd
 
 from .config import CONFIG, DataPaths, POIFilterConfig
+from .llm_recommender import load_llm_recommended_pois
 
 
 @dataclass
@@ -62,6 +63,40 @@ def load_osm_pois(path: Optional[Path] = None) -> pd.DataFrame:
 
     df = pd.read_csv(path)
     return df
+
+
+def load_pois() -> pd.DataFrame:
+    """Load POIs from configured source (OSM or LLM).
+    
+    根据配置决定从OSM CSV文件加载还是通过LLM推荐加载POI。
+    
+    Returns:
+        DataFrame with POI data
+    """
+    if CONFIG.llm.enabled:
+        # Load from LLM recommendation
+        if not CONFIG.llm.city:
+            raise ValueError(
+                "LLM mode is enabled but city is not specified. "
+                "Please set CONFIG.llm.city or disable LLM mode."
+            )
+        
+        cache_path = CONFIG.data.llm_poi_cache / f"{CONFIG.llm.city.lower().replace(' ', '_')}.csv"
+        
+        df = load_llm_recommended_pois(
+            city=CONFIG.llm.city,
+            num_days=CONFIG.llm.num_days,
+            preferences=CONFIG.llm.preferences,
+            budget=CONFIG.llm.budget,
+            interests=CONFIG.llm.interests,
+            num_pois=CONFIG.llm.num_pois,
+            cache_path=cache_path,
+            use_cache=CONFIG.llm.use_cache,
+        )
+        return df
+    else:
+        # Load from OSM CSV (default)
+        return load_osm_pois()
 
 
 def clean_poi_name(name: str, category: str, poi_id: str) -> str:

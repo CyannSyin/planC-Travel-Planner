@@ -16,6 +16,26 @@ This research system addresses the following question:
 
 > 给定一组景点（POI），包含位置、评分、类别、预估游玩时长等属性，如何自动将其聚类为多日行程区域，并生成每天内部的优化路线？
 
+### Key Features / 核心功能
+
+- **Multiple Data Sources / 多种数据源**：
+  - OSM (OpenStreetMap) POI data / OSM 景点数据
+  - **LLM-based POI recommendations / LLM 智能推荐** (NEW!)
+  - Gowalla check-in trajectories / Gowalla 签到轨迹
+
+- **Advanced Clustering / 高级聚类**：
+  - K-means, DBSCAN, HAC, Spectral clustering
+  - Automatic optimal day count determination
+
+- **Route Optimization / 路线优化**：
+  - Nearest Neighbor, Rating-based, 2-opt improvement
+  - Daily time constraints (min/max visit hours)
+
+- **Comprehensive Evaluation / 全面评估**：
+  - Route efficiency metrics
+  - Real-world behavior alignment
+  - Ablation studies
+
 ---
 
 ## 🔬 Experiments / 实验设计
@@ -51,6 +71,10 @@ This research system addresses the following question:
   - Rating-based (descending)
   - Nearest Neighbor (NN)
   - 2-opt improvement (can be applied to any base route)
+
+- **Constraints / 约束条件：**
+  - Maximum visit time per day / 每天最大游玩时间
+  - **Minimum visit time per day / 每天最小游玩时间** (NEW! Ensures at least 4 hours per day)
 
 - **Metrics / 评估指标：**
   - Route length (km)
@@ -95,6 +119,8 @@ planC-Travel-Planner/
 │   ├── data_loader.py           # Data loading utilities
 │   │                             # - Gowalla_totalCheckins.txt loader
 │   │                             # - OSM POI CSV loader
+│   │                             # - LLM POI recommender integration
+│   ├── llm_recommender.py       # LLM-based POI recommendation (NEW!)
 │   ├── clustering.py            # Experiment 1 implementation
 │   │                             # - K-means, DBSCAN, HAC, Spectral
 │   │                             # - Silhouette, DB, CH, SCI metrics
@@ -105,16 +131,20 @@ planC-Travel-Planner/
 │   │                             # - Alignment metrics (Jaccard, Overlap, DTW)
 │   ├── experiments.py           # Experiment orchestration
 │   │                             # - run_all_experiments() entry point
-│   └── ablation.py              # Experiment 4 implementation
+│   ├── ablation.py              # Experiment 4 implementation
+│   └── results_evaluation.py    # Results evaluation and reporting
 ├── data/                        # Data directory
 │   ├── Gowalla_totalCheckins.txt   # Raw Gowalla check-in data
-│   └── city_pois.csv           # Preprocessed OSM POI data
+│   ├── city_pois.csv           # Preprocessed OSM POI data
+│   └── llm_pois/               # LLM-recommended POI cache (NEW!)
 ├── scripts/                     # Data download scripts
 │   ├── download_gowalla.py     # Gowalla dataset downloader
 │   ├── download_osm_pois.py    # OSM POI data downloader
-│   └── download_data.py        # Main download script (all datasets)
+│   ├── download_data.py        # Main download script (all datasets)
+│   └── run_with_llm.py         # Example script for LLM mode (NEW!)
 ├── notebooks/                   # Jupyter notebooks for analysis
 ├── requirements.txt             # Python dependencies
+├── env.example                  # Environment variables template (NEW!)
 ├── LICENSE                      # License file
 └── README.md                    # This file
 ```
@@ -133,7 +163,7 @@ planC-Travel-Planner/
 1. **Clone or navigate to the project directory:**
 
 ```bash
-cd /Users/nicolewang/Documents/research/planCTravel/planC-Travel-Planner
+cd planC-Travel-Planner
 ```
 
 2. **Create a virtual environment (recommended):**
@@ -154,118 +184,126 @@ pip install -r requirements.txt
 - `pandas` — Data manipulation
 - `scikit-learn` — Clustering algorithms
 - `scipy` — Distance calculations, DTW
+- `python-dotenv` — Environment variable management
+- `openai` — OpenAI API client (for LLM recommendations)
+
+**Optional dependencies / 可选依赖：**
+- `anthropic` — Anthropic Claude API (for alternative LLM provider)
+- `google-generativeai` — Google Gemini API (for alternative LLM provider)
+- `osmnx` — OSM data download (optional, for OSM data collection)
 
 ---
 
 ## 📊 Data Preparation / 数据准备
 
-### Option A: Automatic Download (Recommended) / 选项 A：自动下载（推荐）
+### Option A: LLM-based POI Recommendations (NEW!) / 选项 A：基于 LLM 的 POI 推荐（新功能！）
 
-We provide automated scripts to download both datasets. First, install additional dependencies:
+The system now supports using Large Language Models (LLMs) to recommend POIs and estimate visit durations. This provides more personalized recommendations compared to OSM data.
 
-我们提供了自动下载脚本。首先安装额外的依赖：
+系统现在支持使用大语言模型（LLM）来推荐POI和游玩时间，相比OSM数据提供更个性化的推荐。
 
-```bash
-pip install -r requirements.txt
-```
+#### Setup LLM Mode / 设置 LLM 模式
 
-**Note:** If you plan to use OSMnx for OSM data download, also install it:
-**注意：** 如果使用 OSMnx 下载 OSM 数据，请额外安装：
+1. **Configure API keys:**
 
 ```bash
-pip install osmnx
+cp env.example .env
 ```
 
-#### Download All Data / 下载所有数据
-
-**Using city name (recommended) / 使用城市名称（推荐）：**
+2. **Edit `.env` file with your API key:**
 
 ```bash
-python scripts/download_data.py --city "Manhattan, New York, USA"
+OPENAI_API_KEY=your_openai_api_key_here
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4
+LLM_TEMPERATURE=0.7
 ```
 
-**Using bounding box / 使用边界框：**
+**Supported LLM Providers / 支持的 LLM 提供商：**
+- `openai` — OpenAI GPT models (default)
+- `anthropic` — Anthropic Claude (requires `anthropic` package)
+- `google` — Google Gemini (requires `google-generativeai` package)
+
+3. **Use LLM mode in code:**
+
+```python
+from planner.config import CONFIG
+from planner.experiments import run_all_experiments
+
+# Enable LLM mode
+CONFIG.llm.enabled = True
+CONFIG.llm.city = "Chengdu"
+CONFIG.llm.num_days = 3
+CONFIG.llm.preferences = "cultural sites, museums, parks"
+CONFIG.llm.budget = "mid-range"
+CONFIG.llm.interests = ["museums", "parks", "food"]
+
+# Run experiments
+run_all_experiments()
+```
+
+4. **Or use the example script:**
 
 ```bash
-python scripts/download_data.py --bbox 40.8 40.7 -73.9 -74.0
+python scripts/run_with_llm.py
 ```
 
-**Download only one dataset / 只下载一个数据集：**
+**LLM Configuration Options / LLM 配置选项：**
 
-```bash
-# Only Gowalla
-python scripts/download_data.py --skip-osm
+- `enabled`: Enable LLM mode (default: False)
+- `provider`: LLM provider (`"openai"`, `"anthropic"`, `"google"`)
+- `model`: Model name (e.g., `"gpt-4"`, `"claude-3-opus-20240229"`, `"gemini-pro"`)
+- `temperature`: Generation temperature (0.0-2.0, default: 0.7)
+- `use_cache`: Use cached results (default: True)
+- `city`: Target city name (required)
+- `num_days`: Number of travel days (default: 3)
+- `preferences`: User preferences description (optional)
+- `budget`: Budget level (`"budget"`, `"mid-range"`, `"luxury"`) (optional)
+- `interests`: List of interests (optional)
+- `num_pois`: Target number of POIs (None = auto: num_days * 6)
 
-# Only OSM POIs
-python scripts/download_data.py --skip-gowalla --city "Paris, France"
-```
+**LLM Data Flow / LLM 数据流：**
 
-#### Download Separately / 分别下载
+1. LLM API call → Get POI recommendations in JSON format
+2. Cache save → Results saved to `data/llm_pois/{city}.csv`
+3. Data loading → Load from cache if available, otherwise call API
+4. Standard processing → Filtering, clustering, routing, evaluation
 
-**Download Gowalla data only / 只下载 Gowalla 数据：**
+**LLM vs OSM Comparison / LLM 与 OSM 对比：**
 
-```bash
-python scripts/download_gowalla.py
-```
-
-**Download OSM POIs only / 只下载 OSM POI 数据：**
-
-```bash
-# Using city name (requires osmnx)
-python scripts/download_osm_pois.py --city "Manhattan, New York, USA" --method osmnx
-
-# Using bounding box with Overpass API (no osmnx needed)
-python scripts/download_osm_pois.py --bbox 40.8 40.7 -73.9 -74.0 --method overpass
-```
-
-**See help / 查看帮助：**
-
-```bash
-python scripts/download_data.py --help
-python scripts/download_gowalla.py --help
-python scripts/download_osm_pois.py --help
-```
+| Feature / 特性 | OSM Mode | LLM Mode |
+|---------------|----------|----------|
+| Data Source / 数据源 | OpenStreetMap | LLM Recommendations |
+| Coordinate Accuracy / 坐标精度 | High / 高 | Medium / 中等 |
+| Personalization / 个性化 | Low / 低 | High / 高 |
+| Cost / 成本 | Free / 免费 | API fees / API费用 |
+| Speed / 速度 | Fast (local file) / 快（本地文件） | Slow (API call) / 慢（API调用） |
+| Data Volume / 数据量 | Large / 大 | Controllable / 可控制 |
 
 ---
 
-### Option B: Manual Preparation / 选项 B：手动准备
+### Option B: OSM Data (Traditional) / 选项 B：OSM 数据（传统方式）
 
-### 1. Gowalla Check-in Data / Gowalla 签到数据
+#### Automatic Download (Recommended) / 自动下载（推荐）
 
-**File:** `data/Gowalla_totalCheckins.txt`
+We provide automated scripts to download OSM data:
 
-**Expected Format / 期望格式：**
+我们提供了自动下载脚本：
 
-The file should contain tab-separated or space-separated values with the following columns:
+```bash
+# Download using city name
+python scripts/download_data.py --city "Manhattan, New York, USA"
 
-- `user_id` — User identifier
-- `check-in_time` — Timestamp (format: YYYY-MM-DD HH:MM:SS)
-- `latitude` — Latitude
-- `longitude` — Longitude
-- `location_id` — Location identifier
+# Download using bounding box
+python scripts/download_data.py --bbox 40.8 40.7 -73.9 -74.0
 
-**Example / 示例：**
-
-```
-0	2010-07-24T13:45:06Z	30.285648	-97.741760	145064
-0	2010-07-24T13:44:58Z	30.275103	-97.740310	145063
+# Download only OSM POIs
+python scripts/download_data.py --skip-gowalla --city "Paris, France"
 ```
 
-**Note / 说明：** The actual format may vary. Update `data_loader.py` if your file has a different structure.
+#### Manual Preparation / 手动准备
 
-**Manual Download / 手动下载：**
-
-You can download the Gowalla dataset from:
-你可以从以下地址手动下载 Gowalla 数据集：
-
-- **Stanford SNAP:** [https://snap.stanford.edu/data/loc-gowalla.html](https://snap.stanford.edu/data/loc-gowalla.html)
-- Direct link: [https://snap.stanford.edu/data/loc-gowalla_totalCheckins.txt.gz](https://snap.stanford.edu/data/loc-gowalla_totalCheckins.txt.gz)
-
-Download and extract the `.gz` file to `data/Gowalla_totalCheckins.txt`.
-
-下载并解压 `.gz` 文件到 `data/Gowalla_totalCheckins.txt`。
-
-### 2. OSM POI Data / OSM 景点数据
+**OSM POI Data Format / OSM POI 数据格式：**
 
 **File:** `data/city_pois.csv`
 
@@ -279,11 +317,11 @@ Download and extract the `.gz` file to `data/Gowalla_totalCheckins.txt`.
 | `category` | str | POI category (e.g., "tourism=museum", "amenity=restaurant") |
 | `rating` | float | Rating (0.0-5.0) |
 | `duration_min` | float | Estimated visit duration in minutes |
-| `popularity` | float | Popularity score (optional, can be derived) |
+| `popularity` | float | Popularity score (optional) |
 | `name` | str | POI name |
-| `opening_hours` | str | Opening hours (e.g., "Mo-Su 09:00-18:00") |
+| `opening_hours` | str | Opening hours (optional) |
 
-**Example / 示例 CSV:**
+**Example CSV / 示例 CSV:**
 
 ```csv
 poi_id,lat,lon,category,rating,duration_min,popularity,name,opening_hours
@@ -291,46 +329,23 @@ poi_id,lat,lon,category,rating,duration_min,popularity,name,opening_hours
 2,40.7589,-73.9851,amenity=restaurant,4.2,60.0,0.72,Central Park Cafe,Mo-Su 08:00-22:00
 ```
 
-**Manual Collection / 手动收集：**
+---
 
-If you prefer to manually collect OSM data, you can use:
+### Option C: Gowalla Check-in Data / 选项 C：Gowalla 签到数据
 
-如果你更喜欢手动收集 OSM 数据，可以使用：
+**File:** `data/Gowalla_totalCheckins.txt`
 
-- **Overpass Turbo** — Interactive query builder: [https://overpass-turbo.eu/](https://overpass-turbo.eu/)
-- **OSMnx Python library** — See example below
-- **osm2pgsql** — Import OSM data into PostgreSQL
+**Expected Format / 期望格式：**
 
-**Example OSM Query (Overpass API) / 示例查询：**
+Tab-separated values with columns: `user_id`, `check-in_time`, `latitude`, `longitude`, `location_id`
 
-```xml
-<osm-script>
-  <query type="node">
-    <bbox-query e="..." n="..." s="..." w="..."/>
-    <has-kv k="tourism"/>
-  </query>
-  <print/>
-</osm-script>
+**Download / 下载：**
+
+```bash
+python scripts/download_gowalla.py
 ```
 
-**Example Python script with OSMnx / 使用 OSMnx 的示例：**
-
-```python
-import osmnx as ox
-import pandas as pd
-
-# Download POIs in a city
-tags = {'tourism': True, 'amenity': 'restaurant'}
-gdf = ox.geometries_from_place('City Name', tags=tags)
-
-# Process and export to CSV with required columns
-# (You'll need to map OSM fields to the required schema)
-gdf.to_csv('data/city_pois.csv')
-```
-
-**Note / 注意：** For easier data preparation, we recommend using the automatic download scripts described in Option A above.
-
-为了更轻松地准备数据，我们建议使用上面选项 A 中描述的自动下载脚本。
+Or manually from: [Stanford SNAP](https://snap.stanford.edu/data/loc-gowalla.html)
 
 ---
 
@@ -345,6 +360,29 @@ Edit `planner/config.py` to customize:
 ```python
 CONFIG.data.gowalla_checkins = Path("data/Gowalla_totalCheckins.txt")
 CONFIG.data.osm_poi = Path("data/city_pois.csv")
+CONFIG.data.llm_poi_cache = Path("data/llm_pois")  # LLM cache directory
+```
+
+### LLM Settings / LLM 设置
+
+```python
+CONFIG.llm.enabled = False  # Enable LLM mode
+CONFIG.llm.city = "Chengdu"
+CONFIG.llm.num_days = 3
+CONFIG.llm.provider = "openai"
+CONFIG.llm.model = "gpt-4"
+CONFIG.llm.temperature = 0.7
+CONFIG.llm.use_cache = True
+```
+
+### POI Filter Settings / POI 过滤设置
+
+```python
+CONFIG.poi_filter.min_rating = 4.0  # Minimum rating
+CONFIG.poi_filter.max_pois = 10  # Maximum POIs to select
+CONFIG.poi_filter.max_visit_time_hours = 6.0  # Max hours per day
+CONFIG.poi_filter.min_visit_time_hours = 4.0  # Min hours per day (NEW!)
+CONFIG.poi_filter.category_limit = 5  # Max POIs per category
 ```
 
 ### Clustering Settings / 聚类设置
@@ -358,17 +396,9 @@ CONFIG.clustering.max_days = 7  # Maximum number of days
 
 ```python
 CONFIG.routing.methods = ["random", "rating", "nn", "two_opt"]
-CONFIG.routing.max_daily_hours = 10.0  # Maximum hours per day
+CONFIG.routing.max_daily_hours = 8.0  # Maximum hours per day
 CONFIG.routing.start_time = "09:00"
 CONFIG.routing.end_time = "19:00"
-```
-
-### Ablation Settings / 消融实验设置
-
-```python
-CONFIG.ablation.consider_category = True
-CONFIG.ablation.consider_popularity = True
-CONFIG.ablation.enable_two_opt = True
 ```
 
 ---
@@ -386,6 +416,17 @@ python -m planner.experiments
 **Expected Output / 预期输出：**
 
 ```
+=== LLM POI Recommendation ===
+City: Chengdu
+Number of days: 3
+Preferences: cultural sites, museums, parks
+=== POI Filtering ===
+Total POIs loaded: 18
+POIs after filtering:
+  - Min rating: 4.0
+  - Max POIs: 10
+  - Selected POIs: 9
+
 === Experiment 1: POI Clustering ===
 kmeans: n_clusters=3, silhouette=0.452
 dbscan: n_clusters=4, silhouette=0.381
@@ -404,69 +445,58 @@ Alignment metrics: {'jaccard': 0.65, 'overlap': 0.72, 'dtw': 0.15}
 baseline: length=45.23, time_eff=0.75
 with_popularity: length=42.11, time_eff=0.81
 with_2opt: length=40.89, time_eff=0.84
-with_popularity_and_2opt: length=38.56, time_eff=0.87
 ```
 
-### Option 2: Run Individual Experiments / 运行单个实验
+### Option 2: Run with LLM Mode / 使用 LLM 模式运行
 
-**Python script / Python 脚本：**
+```bash
+python scripts/run_with_llm.py
+```
+
+Or configure in code:
+
+```python
+from planner.config import CONFIG
+from planner.experiments import run_all_experiments
+
+CONFIG.llm.enabled = True
+CONFIG.llm.city = "Beijing"
+CONFIG.llm.num_days = 5
+CONFIG.llm.interests = ["museums", "history", "food"]
+
+run_all_experiments()
+```
+
+### Option 3: Run Individual Experiments / 运行单个实验
 
 ```python
 from planner.experiments import (
     experiment_1_poi_clustering,
     experiment_2_daily_routes,
-    experiment_3_behavior_alignment,
-    experiment_4_ablation,
     assign_pois_to_days,
 )
-from planner.data_loader import load_osm_pois, load_gowalla_checkins
+from planner.data_loader import load_pois  # Works with both OSM and LLM
 from planner.config import CONFIG
 
-# Load data
-pois = load_osm_pois()
-gowalla = load_gowalla_checkins()
+# Load data (automatically uses LLM if enabled, otherwise OSM)
+pois = load_pois()
 
 # Experiment 1: Clustering
 cluster_results = experiment_1_poi_clustering(pois)
-best_result = cluster_results["kmeans"]  # or select by best silhouette
-print(f"Optimal number of days: {best_result.n_clusters}")
+best_result = cluster_results["kmeans"]
 
 # Assign POIs to days
-day_pois = assign_pois_to_days(pois, best_result.labels)
+day_pois = assign_pois_to_days(
+    pois, 
+    best_result.labels,
+    max_visit_time_hours=CONFIG.poi_filter.max_visit_time_hours,
+    min_visit_time_hours=CONFIG.poi_filter.min_visit_time_hours
+)
 
 # Experiment 2: Daily routes
 routes, metrics = experiment_2_daily_routes(
     day_pois, method="nn", use_two_opt=True
 )
-print(f"Day 1 route length: {metrics[1]['length_km']:.2f} km")
-
-# Experiment 3: Behavior alignment (example)
-planned_route = [1, 2, 3, 4, 5]
-real_trajectory = [1, 3, 2, 4, 5]  # From Gowalla data
-alignment = experiment_3_behavior_alignment(planned_route, real_trajectory)
-print(f"Jaccard similarity: {alignment['jaccard']:.3f}")
-
-# Experiment 4: Ablation
-ablation_results = experiment_4_ablation(pois)
-print(ablation_results)
-```
-
-### Option 3: Custom Experiment / 自定义实验
-
-```python
-from planner.clustering import select_best_clustering
-from planner.routing import build_route
-from planner.evaluation import evaluate_route
-
-# Custom clustering
-results = select_best_clustering(pois, max_days=5)
-
-# Custom routing
-order = build_route(day_pois[1], method="rating", use_two_opt=False)
-
-# Evaluate
-metrics = evaluate_route(day_pois[1], order)
-print(f"Route length: {metrics.length_km:.2f} km")
 ```
 
 ---
@@ -490,6 +520,7 @@ print(f"Route length: {metrics.length_km:.2f} km")
   - Route length (km)
   - Backtracking ratio
   - Time efficiency
+  - **Daily visit time (with min/max constraints)**
 
 ### Experiment 3 Output / 实验 3 输出
 
@@ -505,54 +536,40 @@ print(f"Route length: {metrics.length_km:.2f} km")
   - Time efficiency comparison
   - Effect of each factor (category, popularity, 2-opt)
 
+### Evaluation Report / 评估报告
+
+Results are automatically saved to `results/evaluation_summary.csv` with:
+- Overall statistics
+- Route statistics
+- Time statistics
+- Experiment details
+
 ---
 
 ## 🧮 Evaluation Guide / 实验结果评估指南
 
-After running experiments (for example with `python -m planner.experiments`), an evaluation summary is:
-
-- **Printed in the console** with overall statistics, route statistics, time statistics, and experiment details.
-- **Saved to** `results/evaluation_summary.csv` for later analysis.
-
 ### Key Metrics / 核心评估指标
 
 - **Route efficiency / 路线效率**
-  - **Time efficiency**: visit time / (visit time + travel time), in \[0, 1\], higher is better.
-  - **Backtracking ratio**: actual route length / baseline route length, ≈1.0 is ideal, \<1.0 is better than baseline.
+  - **Time efficiency**: visit time / (visit time + travel time), in [0, 1], higher is better.
+  - **Backtracking ratio**: actual route length / baseline route length, ≈1.0 is ideal, <1.0 is better than baseline.
+
 - **Clustering quality / 聚类质量**
-  - **Silhouette score**: \[-1, 1\], higher is better; \>0.5 is good, \>0.7 is very good.
+  - **Silhouette score**: [-1, 1], higher is better; >0.5 is good, >0.7 is very good.
+
 - **Behavior alignment / 与真实行为对齐**
-  - **Jaccard similarity**, **Overlap coefficient**: \[0, 1\], higher is better.
+  - **Jaccard similarity**, **Overlap coefficient**: [0, 1], higher is better.
   - **DTW distance**: ≥0, lower is better (sequence more similar).
 
-### Data Cleaning & POI Filters / 数据清洗与 POI 过滤
+### Daily Time Constraints / 每日时间约束
 
-You can control how POIs are filtered and cleaned in `planner/config.py`, for example:
+The system now enforces:
+- **Maximum visit time**: Limits total visit time per day
+- **Minimum visit time**: Ensures at least 4 hours of activities per day (configurable)
 
-```python
-# In POIFilterConfig
-CONFIG.poi_filter.filter_unknown_names = True  # Filter POIs whose name is "Unknown"
-CONFIG.poi_filter.max_visit_time_hours = 8.0   # Max visit time per day (hours), or None for no limit
-```
-
-Routing-related time limits can also be configured, e.g.:
-
-```python
-# In RoutingConfig
-CONFIG.routing.max_daily_hours = 10.0          # Total hours per day including travel
-CONFIG.routing.max_visit_time_hours = 8.0      # Pure visit time per day
-```
-
-For programmatic access and saving of evaluation reports, you can use:
-
-```python
-from planner.results_evaluation import evaluate_experiment_results, save_evaluation_report
-
-summary = evaluate_experiment_results(...)
-save_evaluation_report(summary, Path("results/evaluation_summary.csv"), format="csv")
-```
-
-This allows you to export custom CSV/JSON reports and run multiple configurations for comparison.
+系统现在强制执行：
+- **最大游玩时间**：限制每天的总游玩时间
+- **最小游玩时间**：确保每天至少有4小时的活动（可配置）
 
 ---
 
@@ -580,20 +597,58 @@ def your_custom_route(pois: pd.DataFrame) -> List[int]:
     return order
 ```
 
-### Adding New Evaluation Metrics / 添加新的评估指标
-
-Edit `planner/evaluation.py`:
-
-```python
-def your_custom_metric(route, reference):
-    # Your implementation
-    score = ...
-    return score
-```
-
 ### Custom Data Loader / 自定义数据加载器
 
-Edit `planner/data_loader.py` to support additional data formats.
+Edit `planner/data_loader.py` to support additional data formats or sources.
+
+---
+
+## ❓ Troubleshooting / 故障排除
+
+### Issue: FileNotFoundError for data files
+
+**Solution:** Ensure data files are in the `data/` directory, or update paths in `config.py`.
+
+### Issue: LLM API key not found
+
+```
+ValueError: API key not found for provider 'openai'
+```
+
+**Solution:** 
+1. Copy `env.example` to `.env`
+2. Add your API key: `OPENAI_API_KEY=your_key_here`
+3. Ensure `.env` file is in the project root
+
+### Issue: LLM JSON parsing error
+
+```
+ValueError: Failed to parse JSON from LLM response
+```
+
+**Solution:**
+- Check if the LLM model supports JSON output
+- Try lowering temperature value (e.g., 0.3) for more stable output
+- Check API response completeness
+
+### Issue: Invalid coordinates from LLM
+
+```
+ValueError: Invalid coordinates in LLM response
+```
+
+**Solution:**
+- Use geocoding API to correct coordinates
+- Manually edit cache file: `data/llm_pois/{city}.csv`
+- Re-request recommendations
+
+### Issue: Import errors
+
+**Solution:** Make sure you've installed all dependencies: `pip install -r requirements.txt`
+
+### Issue: Memory errors with large datasets
+
+**Solution:** Adjust `CONFIG.alignment.max_trajectories` to limit Gowalla data loading, or process data in batches.
 
 ---
 
@@ -604,6 +659,7 @@ Edit `planner/data_loader.py` to support additional data formats.
 - **Docstrings / 文档字符串：** All modules and functions have docstrings (English and Chinese).
 - **Configuration centralized / 配置集中化：** All hyperparameters are in `config.py`.
 - **Easy to extend / 易于扩展：** Clear interfaces allow easy addition of new methods.
+- **Multiple data sources / 多种数据源：** Supports both OSM and LLM-based POI recommendations.
 
 ---
 
@@ -628,22 +684,6 @@ See `LICENSE` file for details.
 - Gowalla Dataset: [Stanford Large Network Dataset Collection](https://snap.stanford.edu/data/loc-gowalla.html)
 - OpenStreetMap: [https://www.openstreetmap.org/](https://www.openstreetmap.org/)
 - Scikit-learn Clustering: [https://scikit-learn.org/stable/modules/clustering.html](https://scikit-learn.org/stable/modules/clustering.html)
-
----
-
-## ❓ Troubleshooting / 故障排除
-
-### Issue: FileNotFoundError for data files
-
-**Solution:** Ensure `Gowalla_totalCheckins.txt` and `city_pois.csv` are in the `data/` directory, or update paths in `config.py`.
-
-### Issue: Import errors
-
-**Solution:** Make sure you've installed all dependencies: `pip install -r requirements.txt`
-
-### Issue: Memory errors with large datasets
-
-**Solution:** Adjust `CONFIG.alignment.max_trajectories` to limit Gowalla data loading, or process data in batches.
 
 ---
 
