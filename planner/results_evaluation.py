@@ -172,6 +172,8 @@ def print_evaluation_summary(summary: ExperimentSummary):
         print("\n🧪 Ablation Study / 消融实验:")
         for name, res in summary.ablation_results.items():
             print(f"  {name}:")
+            print(f"    Days: {res.get('n_days', 0)}")
+            print(f"    Clustering silhouette: {res.get('clustering_silhouette', 0):.3f}")
             print(f"    Route length: {res.get('route_length_km', 0):.2f} km")
             print(f"    Time efficiency: {res.get('time_efficiency', 0):.2f}")
     

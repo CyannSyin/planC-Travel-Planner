@@ -24,6 +24,7 @@ from .routing import build_route
 from .evaluation import evaluate_route, evaluate_alignment
 from .ablation import run_ablation_experiments
 from .results_evaluation import evaluate_experiment_results, print_evaluation_summary, save_evaluation_report
+from .visualization import visualize_ablation_study, visualize_ablation_heatmap, visualize_ablation_comparison_table
 
 
 def experiment_1_poi_clustering(pois: pd.DataFrame) -> Dict[str, ClusteringResult]:
@@ -245,7 +246,8 @@ def experiment_4_ablation(pois: pd.DataFrame):
     """Experiment 4 — ablation (category/popularity, 2-opt)."""
 
     results = run_ablation_experiments(pois)
-    return {k: asdict(v) for k, v in results.items()}
+    # run_ablation_experiments already returns a dict of dicts (not dataclass instances)
+    return results
 
 
 def run_all_experiments():
@@ -376,9 +378,44 @@ def run_all_experiments():
     print("Alignment metrics:", align_metrics)
 
     print("\n=== Experiment 4: Ablation ===")
+    print("Testing impact of:")
+    print("  - Popularity feature in clustering (affects how POIs are assigned to days)")
+    print("  - 2-opt optimization in routing (affects daily route quality)")
     ablation = experiment_4_ablation(pois)
     for name, res in ablation.items():
-        print(f"{name}: length={res['route_length_km']:.2f} km, time_eff={res['time_efficiency']:.2f}")
+        print(f"{name}:")
+        print(f"  Days: {res.get('n_days', 0)}, Silhouette: {res.get('clustering_silhouette', 0):.3f}")
+        print(f"  Route length: {res['route_length_km']:.2f} km, Time efficiency: {res['time_efficiency']:.2f}")
+    
+    # Visualize ablation results
+    print("\n=== Generating Ablation Visualizations ===")
+    try:
+        visualize_ablation_study(
+            ablation_results=ablation,
+            output_path=Path("results/ablation_visualization.png"),
+            show_plot=False,
+        )
+        visualize_ablation_heatmap(
+            ablation_results=ablation,
+            output_path=Path("results/ablation_heatmap_length.png"),
+            metric='route_length_km',
+            show_plot=False,
+        )
+        visualize_ablation_heatmap(
+            ablation_results=ablation,
+            output_path=Path("results/ablation_heatmap_efficiency.png"),
+            metric='time_efficiency',
+            show_plot=False,
+        )
+        visualize_ablation_comparison_table(
+            ablation_results=ablation,
+            output_path=Path("results/ablation_comparison_table.png"),
+            show_plot=False,
+        )
+        print("✓ All ablation visualizations generated successfully")
+    except Exception as e:
+        print(f"Note: Could not generate ablation visualizations: {e}")
+        print("  (This is optional - install matplotlib and seaborn for visualization)")
     
     # Generate evaluation summary
     print("\n=== Generating Evaluation Report ===")

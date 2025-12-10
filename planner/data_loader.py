@@ -21,8 +21,6 @@ from .llm_recommender import load_llm_recommended_pois
 @dataclass
 class POI:
     """Point of Interest representation.
-
-    景点基础数据结构。
     """
 
     poi_id: str
@@ -39,8 +37,7 @@ class POI:
 
 def load_osm_pois(path: Optional[Path] = None) -> pd.DataFrame:
     """Load OSM POIs from a preprocessed CSV.
-
-    预期字段:
+    
     - poi_id
     - lat, lon
     - category

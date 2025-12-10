@@ -82,15 +82,23 @@ Outputs: 控制台打印实验结果；生成 `results/evaluation_summary.csv`�
 
 ## Outputs / 结果
 - 控制台：簇数、路线统计、对齐指标、消融对比。
-- 文件：`results/evaluation_summary.csv`（或 json），包含 POI 数、天数、总/均值路线长、时间效率、回溯率、访问时长、聚类方法及 silhouette、路线方法、2-opt 使用情况、对齐指标、消融结果。
+- 文件：
+  - `results/evaluation_summary.csv`（或 json）：包含 POI 数、天数、总/均值路线长、时间效率、回溯率、访问时长、聚类方法及 silhouette、路线方法、2-opt 使用情况、对齐指标、消融结果。
+  - `results/ablation_visualization.png`：消融实验对比柱状图（路线长度与时间效率）
+  - `results/ablation_heatmap_length.png`：路线长度热力图
+  - `results/ablation_heatmap_efficiency.png`：时间效率热力图
+  - `results/ablation_comparison_table.png`：消融实验对比表格
+- 单独运行可视化：`python scripts/visualize_ablation.py --input results/evaluation_summary.csv --show`
 
 ---
 
 ## Repo map / 目录
 ```
 planner/           核心逻辑：config, data_loader, clustering, routing,
-                   evaluation, experiments, ablation, results_evaluation, llm_recommender
-scripts/           download_data.py, download_gowalla.py, run_with_llm.py, clean_city_pois.py
+                   evaluation, experiments, ablation, results_evaluation, 
+                   llm_recommender, visualization
+scripts/           download_data.py, download_gowalla.py, run_with_llm.py, 
+                   clean_city_pois.py, visualize_ablation.py
 data/              city_pois.csv, Gowalla_totalCheckins.txt, llm_pois/
 results/           evaluation_summary.csv (运行后生成)
 env.example        环境变量模板

@@ -9,6 +9,7 @@ This package is organized into the following main modules:
 - evaluation: metrics for routes and real-world behavior alignment
 - experiments: high-level experiment runners (Experiments 1–4)
 - ablation: utilities for ablation studies
+- visualization: visualization utilities for experiment results
 """
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "evaluation",
     "experiments",
     "ablation",
+    "visualization",
 ]
 
 

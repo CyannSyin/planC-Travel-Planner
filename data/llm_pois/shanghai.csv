@@ -1,0 +1,23 @@
+poi_id,name,lat,lon,category,rating,duration_min,popularity,opening_hours
+llm_shanghai_1,The Bund,31.2415,121.4903,tourism=attraction,4.8,120.0,0.95,All day
+llm_shanghai_2,Shanghai Museum,31.2023,121.448,tourism=museum,4.7,180.0,0.9,09:00-17:00
+llm_shanghai_3,Yu Garden,31.2304,121.4901,leisure=park,4.6,120.0,0.85,08:30-17:30
+llm_shanghai_4,Nanjing Road,31.2331,121.4753,tourism=attraction,4.5,90.0,0.88,All day
+llm_shanghai_5,Shanghai Natural History Museum,31.204,121.4442,tourism=museum,4.5,150.0,0.8,09:00-17:15
+llm_shanghai_6,People's Square,31.229,121.4737,leisure=park,4.4,60.0,0.75,All day
+llm_shanghai_7,Shanghai Propaganda Poster Art Centre,31.2185,121.444,tourism=museum,4.3,90.0,0.7,10:00-17:00
+llm_shanghai_8,Jing'an Temple,31.2245,121.4491,tourism=attraction,4.2,60.0,0.68,07:30-17:00
+llm_shanghai_9,Shanghai Urban Planning Exhibition Center,31.2244,121.466,tourism=museum,4.2,120.0,0.65,09:00-17:00
+llm_shanghai_10,Xintiandi,31.215,121.4675,tourism=attraction,4.1,90.0,0.6,All day
+llm_shanghai_11,Fuxing Park,31.2248,121.4684,leisure=park,4.1,90.0,0.62,05:00-22:00
+llm_shanghai_12,Shanghai Ocean Aquarium,31.2336,121.4903,tourism=attraction,4.0,120.0,0.55,09:00-18:00
+llm_shanghai_13,Longhua Temple,31.1516,121.4403,tourism=attraction,4.0,60.0,0.52,07:30-17:00
+llm_shanghai_14,Shanghai Jewish Refugees Museum,31.2201,121.4192,tourism=museum,4.0,90.0,0.5,09:00-17:00
+llm_shanghai_15,Tianzifang,31.2017,121.4666,tourism=attraction,4.0,90.0,0.6,All day
+llm_shanghai_16,Oriental Pearl Tower,31.2392,121.499,tourism=attraction,4.0,120.0,0.55,09:00-22:30
+llm_shanghai_17,Shanghai Circus World,31.2273,121.4604,tourism=attraction,4.0,120.0,0.55,10:00-17:00
+llm_shanghai_18,Qibao Ancient Town,31.2941,121.3626,tourism=attraction,4.0,120.0,0.5,08:30-17:00
+llm_shanghai_19,Shanghai Tower,31.2343,121.505,tourism=attraction,4.0,90.0,0.55,09:00-22:00
+llm_shanghai_20,Baiyulan Restaurant,31.2223,121.4683,food=restaurant,4.5,120.0,0.8,11:00-22:00
+llm_shanghai_21,Din Tai Fung,31.2272,121.478,food=restaurant,4.5,90.0,0.85,10:00-21:30
+llm_shanghai_22,Dintaifung (Xintiandi),31.215,121.4675,food=restaurant,4.5,90.0,0.82,10:00-21:30
