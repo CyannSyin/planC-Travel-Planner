@@ -27,9 +27,21 @@ from .results_evaluation import evaluate_experiment_results, print_evaluation_su
 
 
 def experiment_1_poi_clustering(pois: pd.DataFrame) -> Dict[str, ClusteringResult]:
-    """Experiment 1 — run clustering and select best clustering for each method."""
+    """Experiment 1 — run clustering and select best clustering for each method.
+    
+    当LLM模式启用时，自动使用CONFIG.llm.num_days作为固定天数。
+    """
 
-    results = select_best_clustering(pois, max_days=CONFIG.clustering.max_days)
+    # 如果LLM模式启用，使用LLM配置的天数作为固定天数
+    fixed_days = None
+    if CONFIG.llm.enabled and CONFIG.llm.num_days:
+        fixed_days = CONFIG.llm.num_days
+    
+    results = select_best_clustering(
+        pois, 
+        max_days=CONFIG.clustering.max_days,
+        fixed_days=fixed_days
+    )
     return results
 
 
@@ -273,6 +285,11 @@ def run_all_experiments():
     print("\n=== Experiment 1: POI Clustering ===")
     print("(This experiment clusters POIs into days. Route planning is in Experiment 2)")
     print(f"Total POIs for clustering: {len(pois)}")
+    
+    # 如果LLM模式启用，显示使用的固定天数
+    if CONFIG.llm.enabled and CONFIG.llm.num_days:
+        print(f"Using fixed number of days from LLM config: {CONFIG.llm.num_days}")
+    
     cluster_results = experiment_1_poi_clustering(pois)
     for method, res in cluster_results.items():
         silhouette_str = f"{res.silhouette:.3f}" if res.silhouette is not None else "NA"

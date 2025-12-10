@@ -55,6 +55,7 @@ class ClusteringConfig:
 
     methods: List[str] = field(default_factory=lambda: ["kmeans", "dbscan", "hac", "spectral"])
     max_days: int = 7  # 最大天数（最大聚类数）
+    fixed_days: Optional[int] = None  # 固定天数（None表示自动选择最佳值，设置后强制使用该天数）
 
 
 @dataclass
@@ -95,9 +96,9 @@ class LLMConfig:
     LLM推荐配置：用于通过大语言模型推荐POI。
     """
     
-    enabled: bool = False  # 是否启用LLM推荐模式
-    provider: str = "openai"  # LLM提供商: openai, anthropic, google
-    model: str = "gpt-4"  # 模型名称
+    enabled: bool = True  # 是否启用LLM推荐模式
+    provider: str = "aihubmix"  # LLM提供商: openai, anthropic, google
+    model: str = "gpt-4o-mini"  # 模型名称
     temperature: float = 0.7  # 生成温度 (0.0-2.0)
     use_cache: bool = True  # 是否使用缓存
     city: Optional[str] = None  # 目标城市名称

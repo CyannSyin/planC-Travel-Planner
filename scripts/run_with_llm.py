@@ -19,8 +19,8 @@ def main():
     
     # Configure LLM mode
     CONFIG.llm.enabled = True
-    CONFIG.llm.city = "Chengdu"  # 修改为你想要的城市
-    CONFIG.llm.num_days = 3
+    CONFIG.llm.city = "Guangzhou"  # 修改为你想要的城市
+    CONFIG.llm.num_days = 4
     CONFIG.llm.preferences = "cultural sites, museums, parks"
     CONFIG.llm.budget = "mid-range"
     CONFIG.llm.interests = ["museums", "parks", "food", "history"]

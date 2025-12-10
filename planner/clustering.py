@@ -202,17 +202,24 @@ def run_dbscan(pois: pd.DataFrame, eps_km: float = 1.0, min_samples: int = 5) ->
 def select_best_clustering(
     pois: pd.DataFrame,
     max_days: Optional[int] = None,
+    fixed_days: Optional[int] = None,
 ) -> Dict[str, ClusteringResult]:
     """Run multiple clustering methods and select best clustering per method.
 
     返回：
     - 每种方法对应的最佳结果（按 silhouette 优先，其次 SCI）。
 
-    对于使用 k 的方法（KMeans/HAC/Spectral），在 k=2..max_days 之间搜索。
+    对于使用 k 的方法（KMeans/HAC/Spectral）：
+    - 如果 fixed_days 已设置，直接使用该天数
+    - 否则在 k=2..max_days 之间搜索最佳值
     """
 
     if max_days is None:
         max_days = CONFIG.clustering.max_days
+    
+    # 如果配置中指定了固定天数，优先使用配置值
+    if fixed_days is None:
+        fixed_days = CONFIG.clustering.fixed_days
 
     results: Dict[str, ClusteringResult] = {}
     methods = CONFIG.clustering.methods
@@ -220,25 +227,40 @@ def select_best_clustering(
     for method in methods:
         best: Optional[ClusteringResult] = None
         if method in {"kmeans", "hac", "spectral"}:
-            for k in range(2, max_days + 1):
+            if fixed_days is not None:
+                # 固定天数模式：直接使用指定天数
+                k = fixed_days
                 if method == "kmeans":
                     res = run_kmeans(pois, k)
                 elif method == "hac":
                     res = run_hac(pois, k)
                 else:
                     res = run_spectral(pois, k)
-
-                if res.silhouette is None:
-                    continue
-                if best is None:
+                
+                if res.silhouette is not None:
                     best = res
-                else:
-                    # 优先更高 silhouette，其次更高 SCI
-                    if res.silhouette > (best.silhouette or -1):
+            else:
+                # 自动搜索模式：在 k=2..max_days 之间搜索最佳值
+                for k in range(2, max_days + 1):
+                    if method == "kmeans":
+                        res = run_kmeans(pois, k)
+                    elif method == "hac":
+                        res = run_hac(pois, k)
+                    else:
+                        res = run_spectral(pois, k)
+
+                    if res.silhouette is None:
+                        continue
+                    if best is None:
                         best = res
-                    elif res.silhouette == best.silhouette and (res.sci or 0) > (best.sci or 0):
-                        best = res
+                    else:
+                        # 优先更高 silhouette，其次更高 SCI
+                        if res.silhouette > (best.silhouette or -1):
+                            best = res
+                        elif res.silhouette == best.silhouette and (res.sci or 0) > (best.sci or 0):
+                            best = res
         elif method == "dbscan":
+            # DBSCAN 不支持固定天数，始终使用搜索模式
             # 粗略扫描 eps
             for eps in [0.5, 1.0, 2.0, 3.0]:
                 res = run_dbscan(pois, eps_km=eps)
