@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Data files (too large for Git)
+data/Gowalla_totalCheckins.txt
+data/*.txt
+data/*.csv
+!data/.gitkeep
+
+# Results
+results/*.png
+results/*.csv
+results/*.json
+!results/.gitkeep
+
+# LLM cache
+data/llm_pois/*.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+
