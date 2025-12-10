@@ -36,7 +36,7 @@ data/llm_pois/*.csv
 Thumbs.db
 
 # Environment variables
-.env
+*.env
 
 # Jupyter
 .ipynb_checkpoints/

@@ -24,7 +24,15 @@ from .routing import build_route
 from .evaluation import evaluate_route, evaluate_alignment
 from .ablation import run_ablation_experiments
 from .results_evaluation import evaluate_experiment_results, print_evaluation_summary, save_evaluation_report
-from .visualization import visualize_ablation_study, visualize_ablation_heatmap, visualize_ablation_comparison_table
+from .visualization import (
+    visualize_ablation_study, 
+    visualize_ablation_heatmap, 
+    visualize_ablation_comparison_table,
+    visualize_experiment_1_clustering,
+    visualize_experiment_1_clustering_map,
+    visualize_experiment_2_routes,
+    visualize_experiment_2_routes_map,
+)
 
 
 def experiment_1_poi_clustering(pois: pd.DataFrame) -> Dict[str, ClusteringResult]:
@@ -271,7 +279,16 @@ def run_all_experiments():
         print("=== Loading OSM POIs ===")
         pois_raw = load_osm_pois()
     
+    # Load Gowalla data (optional, only used in Experiment 3)
+    print("\n=== Loading Gowalla Data (Optional) ===")
     gowalla = load_gowalla_checkins()
+    if gowalla is None:
+        print("  ℹ️  Gowalla data not found - Experiment 3 will use synthetic data")
+        print("  (To use real Gowalla data, place Gowalla_totalCheckins.txt in data/ directory)")
+        gowalla_available = False
+    else:
+        print(f"  ✓ Loaded {len(gowalla)} Gowalla check-ins")
+        gowalla_available = True
 
     print("\n=== POI Filtering ===")
     print(f"Total POIs loaded: {len(pois_raw)}")
@@ -296,6 +313,19 @@ def run_all_experiments():
     for method, res in cluster_results.items():
         silhouette_str = f"{res.silhouette:.3f}" if res.silhouette is not None else "NA"
         print(f"{method}: n_clusters={res.n_clusters}, silhouette={silhouette_str}")
+    
+    # Visualize Experiment 1 results
+    print("\n=== Generating Experiment 1 Visualizations ===")
+    try:
+        visualize_experiment_1_clustering(
+            cluster_results=cluster_results,
+            output_path=Path("results/experiment1_clustering.png"),
+            show_plot=False,
+        )
+        print("✓ Experiment 1 clustering metrics visualization generated successfully")
+    except Exception as e:
+        print(f"Note: Could not generate Experiment 1 metrics visualizations: {e}")
+        print("  (This is optional - install matplotlib for visualization)")
 
     # 选一个方法（比如 KMeans）作为最终分天方案
     if "kmeans" not in cluster_results:
@@ -324,6 +354,19 @@ def run_all_experiments():
         total_time = day_pois[day]['duration_min'].sum() / 60.0 if 'duration_min' in day_pois[day].columns else 0.0
         min_met = "✓" if min_visit_time is None or total_time >= min_visit_time else "✗"
         print(f"  Day {day}: {n_pois} POIs ({total_time:.1f} hours) {min_met}")
+    
+    # Visualize Experiment 1 clustering map
+    try:
+        visualize_experiment_1_clustering_map(
+            pois=pois,
+            cluster_result=cluster_results[best_method],
+            output_path=Path("results/experiment1_clustering_map.png"),
+            show_plot=False,
+        )
+        print("✓ Experiment 1 clustering map visualization generated successfully")
+    except Exception as e:
+        print(f"Note: Could not generate Experiment 1 clustering map: {e}")
+        print("  (This is optional - install matplotlib for visualization)")
 
     print("\n=== Experiment 2: Daily Route Optimization (NN + 2-opt) ===")
     routes, route_metrics = experiment_2_daily_routes(
@@ -366,14 +409,47 @@ def run_all_experiments():
     total_pois = sum(len(routes[day]) for day in routes.keys())
     print(f"  Total route length across all days: {total_route_length:.2f} km")
     print(f"  Total POIs to visit: {total_pois}")
+    
+    # Visualize Experiment 2 results
+    print("\n=== Generating Experiment 2 Visualizations ===")
+    try:
+        visualize_experiment_2_routes(
+            route_metrics=route_metrics,
+            day_pois=day_pois,
+            output_path=Path("results/experiment2_routes.png"),
+            show_plot=False,
+        )
+        print("✓ Experiment 2 routes metrics visualization generated successfully")
+    except Exception as e:
+        print(f"Note: Could not generate Experiment 2 metrics visualizations: {e}")
+        print("  (This is optional - install matplotlib for visualization)")
+    
+    # Visualize Experiment 2 routes map
+    try:
+        visualize_experiment_2_routes_map(
+            day_pois=day_pois,
+            routes=routes,
+            output_path=Path("results/experiment2_routes_map.png"),
+            show_plot=False,
+        )
+        print("✓ Experiment 2 routes map visualization generated successfully")
+    except Exception as e:
+        print(f"Note: Could not generate Experiment 2 routes map: {e}")
+        print("  (This is optional - install matplotlib for visualization)")
 
-    print("\n=== Experiment 3: Real-world Behavior Alignment (toy) ===")
-    # 这里只做一个示例：选一天，把 planned_route 映射为 location_id 列表；
-    # 实际上你会从 gowalla DataFrame 中提取真实轨迹进行对比。
+    print("\n=== Experiment 3: Real-world Behavior Alignment ===")
     sample_day = next(iter(routes.keys()))
     planned = build_synthetic_gowalla_sequence(day_pois[sample_day], routes[sample_day])
-    # toy: 假设真实轨迹与 planned 稍有扰动
-    real_traj = planned[::-1]
+    
+    if gowalla_available:
+        # TODO: 使用真实的 Gowalla 轨迹数据
+        print("  (Gowalla data available, but currently using synthetic trajectory for demonstration)")
+        real_traj = planned[::-1]  # 示例：使用反转的路线作为"真实"轨迹
+    else:
+        print("  (Using synthetic trajectory - Gowalla data not available)")
+        # 示例：假设真实轨迹与 planned 稍有扰动
+        real_traj = planned[::-1]
+    
     align_metrics = experiment_3_behavior_alignment(planned, real_traj)
     print("Alignment metrics:", align_metrics)
 

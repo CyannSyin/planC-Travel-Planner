@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -72,8 +73,24 @@ class LLMRecommender:
         # Support OpenAI-compatible proxy such as AiHubMix via base_url override.
         if self.provider == "aihubmix":
             from openai import OpenAI
+            import httpx
             base_url = os.getenv("OPENAI_BASE_URL")  # e.g. https://api.aihubmix.com/v1
-            return OpenAI(api_key=self.api_key, base_url=base_url)
+            # 设置更长的超时时间（连接超时30秒，读取超时120秒）
+            timeout = httpx.Timeout(30.0, connect=30.0, read=120.0)
+            return OpenAI(
+                api_key=self.api_key, 
+                base_url=base_url,
+                timeout=timeout
+            )
+        elif self.provider == "openai":
+            from openai import OpenAI
+            import httpx
+            # 设置更长的超时时间
+            timeout = httpx.Timeout(30.0, connect=30.0, read=120.0)
+            return OpenAI(
+                api_key=self.api_key,
+                timeout=timeout
+            )
         elif self.provider == "anthropic":
             try:
                 import anthropic
@@ -197,42 +214,84 @@ class LLMRecommender:
         
         return "\n".join(prompt_parts)
     
-    def _call_llm(self, prompt: str) -> str:
-        """Call LLM API and return response."""
-        if self.provider in {"openai", "aihubmix"}:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful travel planning assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-            )
-            return response.choices[0].message.content
+    def _call_llm(self, prompt: str, max_retries: int = 3, retry_delay: float = 2.0) -> str:
+        """Call LLM API and return response with retry logic.
         
-        elif self.provider == "anthropic":
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4000,
-                temperature=self.temperature,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-            )
-            return response.content[0].text
+        Args:
+            prompt: The prompt to send to LLM
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retries in seconds
         
-        elif self.provider == "google":
-            response = self.client.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": self.temperature,
-                    "max_output_tokens": 4000,
-                }
-            )
-            return response.text
+        Returns:
+            LLM response text
         
+        Raises:
+            Exception: If all retry attempts fail
+        """
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                if self.provider in {"openai", "aihubmix"}:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful travel planning assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=self.temperature,
+                    )
+                    return response.choices[0].message.content
+                
+                elif self.provider == "anthropic":
+                    response = self.client.messages.create(
+                        model=self.model,
+                        max_tokens=4000,
+                        temperature=self.temperature,
+                        messages=[
+                            {"role": "user", "content": prompt}
+                        ],
+                    )
+                    return response.content[0].text
+                
+                elif self.provider == "google":
+                    response = self.client.generate_content(
+                        prompt,
+                        generation_config={
+                            "temperature": self.temperature,
+                            "max_output_tokens": 4000,
+                        }
+                    )
+                    return response.text
+                
+                else:
+                    raise ValueError(f"Unsupported provider: {self.provider}")
+                    
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                
+                # 检查是否是超时或连接错误（可重试的错误）
+                is_retryable = any(keyword in error_str for keyword in [
+                    'timeout', 'connect', 'connection', 'network', 
+                    'handshake', 'temporarily unavailable', '503', '502', '504'
+                ])
+                
+                if not is_retryable or attempt == max_retries - 1:
+                    # 不可重试的错误或最后一次尝试，直接抛出
+                    raise
+                
+                # 可重试的错误，等待后重试
+                wait_time = retry_delay * (attempt + 1)  # 指数退避
+                print(f"  ⚠️  API调用失败（尝试 {attempt + 1}/{max_retries}）: {type(e).__name__}")
+                print(f"  ⏳ 等待 {wait_time:.1f} 秒后重试...")
+                time.sleep(wait_time)
+        
+        # 如果所有重试都失败
+        if last_error:
+            raise last_error
         else:
-            raise ValueError(f"Unsupported provider: {self.provider}")
+            raise RuntimeError("Unexpected error: all retries exhausted but no error captured")
     
     def _parse_llm_response(self, response: str, city: str) -> pd.DataFrame:
         """Parse LLM JSON response into DataFrame."""
