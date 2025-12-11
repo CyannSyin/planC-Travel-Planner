@@ -319,7 +319,7 @@ def run_all_experiments():
     try:
         visualize_experiment_1_clustering(
             cluster_results=cluster_results,
-            output_path=Path("results/experiment1_clustering.png"),
+            output_path=Path("results/experiment1_clustering.pdf"),
             show_plot=False,
         )
         print("✓ Experiment 1 clustering metrics visualization generated successfully")
@@ -334,6 +334,13 @@ def run_all_experiments():
     else:
         best_method = "kmeans"
     labels = cluster_results[best_method].labels
+    # if "DBSCAN" not in cluster_results:
+    #     print("DBSCAN result not found, fallback to first method.")
+    #     best_method = next(iter(cluster_results.keys()))
+    # else:
+    #     best_method = "DBSCAN"
+    # labels = cluster_results[best_method].labels
+    
     # Apply maximum and minimum visit time constraints if configured
     max_visit_time = CONFIG.poi_filter.max_visit_time_hours
     min_visit_time = CONFIG.poi_filter.min_visit_time_hours
@@ -360,7 +367,7 @@ def run_all_experiments():
         visualize_experiment_1_clustering_map(
             pois=pois,
             cluster_result=cluster_results[best_method],
-            output_path=Path("results/experiment1_clustering_map.png"),
+            output_path=Path("results/experiment1_clustering_map.pdf"),
             show_plot=False,
         )
         print("✓ Experiment 1 clustering map visualization generated successfully")
@@ -416,7 +423,7 @@ def run_all_experiments():
         visualize_experiment_2_routes(
             route_metrics=route_metrics,
             day_pois=day_pois,
-            output_path=Path("results/experiment2_routes.png"),
+            output_path=Path("results/experiment2_routes.pdf"),
             show_plot=False,
         )
         print("✓ Experiment 2 routes metrics visualization generated successfully")
@@ -429,7 +436,7 @@ def run_all_experiments():
         visualize_experiment_2_routes_map(
             day_pois=day_pois,
             routes=routes,
-            output_path=Path("results/experiment2_routes_map.png"),
+            output_path=Path("results/experiment2_routes_map.pdf"),
             show_plot=False,
         )
         print("✓ Experiment 2 routes map visualization generated successfully")
@@ -468,24 +475,24 @@ def run_all_experiments():
     try:
         visualize_ablation_study(
             ablation_results=ablation,
-            output_path=Path("results/ablation_visualization.png"),
+            output_path=Path("results/ablation_visualization.pdf"),
             show_plot=False,
         )
         visualize_ablation_heatmap(
             ablation_results=ablation,
-            output_path=Path("results/ablation_heatmap_length.png"),
+            output_path=Path("results/ablation_heatmap_length.pdf"),
             metric='route_length_km',
             show_plot=False,
         )
         visualize_ablation_heatmap(
             ablation_results=ablation,
-            output_path=Path("results/ablation_heatmap_efficiency.png"),
+            output_path=Path("results/ablation_heatmap_efficiency.pdf"),
             metric='time_efficiency',
             show_plot=False,
         )
         visualize_ablation_comparison_table(
             ablation_results=ablation,
-            output_path=Path("results/ablation_comparison_table.png"),
+            output_path=Path("results/ablation_comparison_table.pdf"),
             show_plot=False,
         )
         print("✓ All ablation visualizations generated successfully")

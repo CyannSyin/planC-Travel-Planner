@@ -115,14 +115,14 @@ def main():
         # 1. Combined bar charts
         visualize_ablation_study(
             ablation_results=ablation_results,
-            output_path=output_dir / "ablation_visualization.png",
+            output_path=output_dir / "ablation_visualization.pdf",
             show_plot=args.show,
         )
         
         # 2. Heatmap for route length
         visualize_ablation_heatmap(
             ablation_results=ablation_results,
-            output_path=output_dir / "ablation_heatmap_length.png",
+            output_path=output_dir / "ablation_heatmap_length.pdf",
             metric='route_length_km',
             show_plot=args.show,
         )
@@ -130,7 +130,7 @@ def main():
         # 3. Heatmap for time efficiency
         visualize_ablation_heatmap(
             ablation_results=ablation_results,
-            output_path=output_dir / "ablation_heatmap_efficiency.png",
+            output_path=output_dir / "ablation_heatmap_efficiency.pdf",
             metric='time_efficiency',
             show_plot=args.show,
         )
@@ -138,7 +138,7 @@ def main():
         # 4. Comparison table
         visualize_ablation_comparison_table(
             ablation_results=ablation_results,
-            output_path=output_dir / "ablation_comparison_table.png",
+            output_path=output_dir / "ablation_comparison_table.pdf",
             show_plot=args.show,
         )
         

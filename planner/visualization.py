@@ -158,7 +158,7 @@ def visualize_ablation_study(
                for i in range(len(df))]
     
     bars3 = ax3.bar(x_pos, df['Clustering Silhouette'], color=colors3, alpha=0.7, edgecolor='black')
-    ax3.set_xlabel('Configuration / 配置', fontsize=11)
+    ax3.set_xlabel('Configuration', fontsize=11)
     ax3.set_ylabel('Clustering Silhouette Score', fontsize=11)
     ax3.set_title('Clustering Quality', fontsize=12, fontweight='bold')
     ax3.set_xticks(x_pos)
@@ -365,7 +365,7 @@ def visualize_ablation_comparison_table(
     
     # 保存图片
     if output_path is None:
-        output_path = Path("results/ablation_comparison_table.png")
+        output_path = Path("results/ablation_comparison_table.pdf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
     print(f"✓ Ablation comparison table saved to: {output_path}")
@@ -393,7 +393,7 @@ def visualize_experiment_1_clustering_map(
     Args:
         pois: DataFrame with POIs containing 'lat' and 'lon' columns
         cluster_result: ClusteringResult object with labels
-        output_path: Path to save the figure (default: results/experiment1_clustering_map.png)
+        output_path: Path to save the figure (default: results/experiment1_clustering_map.pdf)
         figsize: Figure size (width, height)
         dpi: Resolution for saved figure
         show_plot: Whether to display the plot interactively
@@ -471,8 +471,8 @@ def visualize_experiment_1_clustering_map(
             label=f'Noise ({noise_mask.sum()} POIs)'
         )
     
-    ax.set_xlabel('Longitude / 经度', fontsize=12)
-    ax.set_ylabel('Latitude / 纬度', fontsize=12)
+    ax.set_xlabel('Longitude', fontsize=12)
+    ax.set_ylabel('Latitude', fontsize=12)
     ax.set_title(f'Experiment 1: POI Clustering Map\n{n_clusters} Days / {len(pois_valid)} POIs', 
                  fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.3)
@@ -481,7 +481,7 @@ def visualize_experiment_1_clustering_map(
     plt.tight_layout()
     
     if output_path is None:
-        output_path = Path("results/experiment1_clustering_map.png")
+        output_path = Path("results/experiment1_clustering_map.pdf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
     print(f"✓ Experiment 1 clustering map saved to: {output_path}")
@@ -515,7 +515,7 @@ def visualize_experiment_1_clustering(
                 "hac": ClusteringResult(...),
                 ...
             }
-        output_path: Path to save the figure (default: results/experiment1_clustering.png)
+        output_path: Path to save the figure (default: results/experiment1_clustering.pdf)
         figsize: Figure size (width, height)
         dpi: Resolution for saved figure
         show_plot: Whether to display the plot interactively
@@ -543,7 +543,7 @@ def visualize_experiment_1_clustering(
     
     # 创建图形：2x3 布局
     fig, axes = plt.subplots(2, 3, figsize=figsize)
-    fig.suptitle('Experiment 1: POI Clustering Results / 实验1：POI聚类结果', 
+    fig.suptitle('Experiment 1: POI Clustering Results', 
                  fontsize=16, fontweight='bold')
     
     x_pos = np.arange(len(methods))
@@ -552,9 +552,9 @@ def visualize_experiment_1_clustering(
     # 1. 聚类数量对比
     ax1 = axes[0, 0]
     bars1 = ax1.bar(x_pos, n_clusters_list, color=colors, alpha=0.7, edgecolor='black')
-    ax1.set_xlabel('Clustering Method / 聚类方法', fontsize=11)
-    ax1.set_ylabel('Number of Clusters / 聚类数量', fontsize=11)
-    ax1.set_title('Number of Clusters / 聚类数量', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('Clustering Method', fontsize=11)
+    ax1.set_ylabel('Number of Clusters', fontsize=11)
+    ax1.set_title('Number of Clusters', fontsize=12, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(methods, rotation=0, fontsize=10)
     ax1.grid(axis='y', alpha=0.3, linestyle='--')
@@ -569,7 +569,7 @@ def visualize_experiment_1_clustering(
     # 2. Silhouette Score（越高越好，范围[-1, 1]）
     ax2 = axes[0, 1]
     bars2 = ax2.bar(x_pos, silhouette_list, color=colors, alpha=0.7, edgecolor='black')
-    ax2.set_xlabel('Clustering Method / 聚类方法', fontsize=11)
+    ax2.set_xlabel('Clustering Method', fontsize=11)
     ax2.set_ylabel('Silhouette Score', fontsize=11)
     ax2.set_title('Silhouette Score (Higher is Better)', fontsize=12, fontweight='bold')
     ax2.set_xticks(x_pos)
@@ -587,7 +587,7 @@ def visualize_experiment_1_clustering(
     # 3. Davies-Bouldin Index（越低越好）
     ax3 = axes[0, 2]
     bars3 = ax3.bar(x_pos, davies_bouldin_list, color=colors, alpha=0.7, edgecolor='black')
-    ax3.set_xlabel('Clustering Method / 聚类方法', fontsize=11)
+    ax3.set_xlabel('Clustering Method', fontsize=11)
     ax3.set_ylabel('Davies-Bouldin Index', fontsize=11)
     ax3.set_title('Davies-Bouldin Index (Lower is Better)', fontsize=12, fontweight='bold')
     ax3.set_xticks(x_pos)
@@ -604,7 +604,7 @@ def visualize_experiment_1_clustering(
     # 4. Calinski-Harabasz Index（越高越好）
     ax4 = axes[1, 0]
     bars4 = ax4.bar(x_pos, calinski_harabasz_list, color=colors, alpha=0.7, edgecolor='black')
-    ax4.set_xlabel('Clustering Method / 聚类方法', fontsize=11)
+    ax4.set_xlabel('Clustering Method', fontsize=11)
     ax4.set_ylabel('Calinski-Harabasz Index', fontsize=11)
     ax4.set_title('Calinski-Harabasz Index (Higher is Better)', fontsize=12, fontweight='bold')
     ax4.set_xticks(x_pos)
@@ -625,7 +625,7 @@ def visualize_experiment_1_clustering(
     # 5. SCI Index（越高越好）
     ax5 = axes[1, 1]
     bars5 = ax5.bar(x_pos, sci_list, color=colors, alpha=0.7, edgecolor='black')
-    ax5.set_xlabel('Clustering Method / 聚类方法', fontsize=11)
+    ax5.set_xlabel('Clustering Method', fontsize=11)
     ax5.set_ylabel('SCI Index', fontsize=11)
     ax5.set_title('SCI Index (Higher is Better)', fontsize=12, fontweight='bold')
     ax5.set_xticks(x_pos)
@@ -661,9 +661,9 @@ def visualize_experiment_1_clustering(
     ]
     
     bars6 = ax6.bar(x_pos, composite_scores, color=colors, alpha=0.7, edgecolor='black')
-    ax6.set_xlabel('Clustering Method / 聚类方法', fontsize=11)
+    ax6.set_xlabel('Clustering Method', fontsize=11)
     ax6.set_ylabel('Normalized Composite Score', fontsize=11)
-    ax6.set_title('Normalized Composite Score / 归一化综合评分', fontsize=12, fontweight='bold')
+    ax6.set_title('Normalized Composite Score', fontsize=12, fontweight='bold')
     ax6.set_xticks(x_pos)
     ax6.set_xticklabels(methods, rotation=0, fontsize=10)
     ax6.grid(axis='y', alpha=0.3, linestyle='--')
@@ -680,7 +680,7 @@ def visualize_experiment_1_clustering(
     
     # 保存图片
     if output_path is None:
-        output_path = Path("results/experiment1_clustering.png")
+        output_path = Path("results/experiment1_clustering.pdf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
     print(f"✓ Experiment 1 clustering visualization saved to: {output_path}")
@@ -708,7 +708,7 @@ def visualize_experiment_2_routes_map(
     Args:
         day_pois: Dictionary mapping day to DataFrame with POIs for that day
         routes: Dictionary mapping day to list of POI indices (route order)
-        output_path: Path to save the figure (default: results/experiment2_routes_map.png)
+        output_path: Path to save the figure (default: results/experiment2_routes_map.pdf)
         figsize: Figure size (width, height)
         dpi: Resolution for saved figure
         show_plot: Whether to display the plot interactively
@@ -735,7 +735,7 @@ def visualize_experiment_2_routes_map(
         n_rows = (n_days + 2) // 3
     
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
-    fig.suptitle('Experiment 2: Daily Route Optimization Map / 实验2：每日路线优化地图', 
+    fig.suptitle('Experiment 2: Daily Route Optimization Map', 
                  fontsize=16, fontweight='bold')
     
     # 确保axes是数组
@@ -856,8 +856,8 @@ def visualize_experiment_2_routes_map(
                     bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7)
                 )
         
-        ax.set_xlabel('Longitude / 经度', fontsize=10)
-        ax.set_ylabel('Latitude / 纬度', fontsize=10)
+        ax.set_xlabel('Longitude', fontsize=10)
+        ax.set_ylabel('Latitude', fontsize=10)
         ax.set_title(f'Day {day} Route', fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.legend(loc='best', fontsize=8)
@@ -869,7 +869,7 @@ def visualize_experiment_2_routes_map(
     plt.tight_layout()
     
     if output_path is None:
-        output_path = Path("results/experiment2_routes_map.png")
+        output_path = Path("results/experiment2_routes_map.pdf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
     print(f"✓ Experiment 2 routes map saved to: {output_path}")
@@ -906,7 +906,7 @@ def visualize_experiment_2_routes(
                 ...
             }
         day_pois: Optional dictionary with POIs for each day (used for POI count)
-        output_path: Path to save the figure (default: results/experiment2_routes.png)
+        output_path: Path to save the figure (default: results/experiment2_routes.pdf)
         figsize: Figure size (width, height)
         dpi: Resolution for saved figure
         show_plot: Whether to display the plot interactively
@@ -930,7 +930,7 @@ def visualize_experiment_2_routes(
     
     # 创建图形：2x3 布局
     fig, axes = plt.subplots(2, 3, figsize=figsize)
-    fig.suptitle('Experiment 2: Daily Route Optimization Results / 实验2：每日路线优化结果', 
+    fig.suptitle('Experiment 2: Daily Route Optimization Results', 
                  fontsize=16, fontweight='bold')
     
     x_pos = np.arange(len(days))
@@ -939,9 +939,9 @@ def visualize_experiment_2_routes(
     # 1. 路线长度对比
     ax1 = axes[0, 0]
     bars1 = ax1.bar(x_pos, route_lengths, color=colors, alpha=0.7, edgecolor='black')
-    ax1.set_xlabel('Day / 天数', fontsize=11)
-    ax1.set_ylabel('Route Length (km) / 路线长度（公里）', fontsize=11)
-    ax1.set_title('Route Length per Day / 每日路线长度', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('Day', fontsize=11)
+    ax1.set_ylabel('Route Length (km)', fontsize=11)
+    ax1.set_title('Route Length per Day', fontsize=12, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels([f'Day {d}' for d in days], rotation=0, fontsize=10)
     ax1.grid(axis='y', alpha=0.3, linestyle='--')
@@ -956,9 +956,9 @@ def visualize_experiment_2_routes(
     # 2. 时间效率对比
     ax2 = axes[0, 1]
     bars2 = ax2.bar(x_pos, time_efficiencies, color=colors, alpha=0.7, edgecolor='black')
-    ax2.set_xlabel('Day / 天数', fontsize=11)
-    ax2.set_ylabel('Time Efficiency / 时间效率', fontsize=11)
-    ax2.set_title('Time Efficiency per Day / 每日时间效率', fontsize=12, fontweight='bold')
+    ax2.set_xlabel('Day', fontsize=11)
+    ax2.set_ylabel('Time Efficiency', fontsize=11)
+    ax2.set_title('Time Efficiency per Day', fontsize=12, fontweight='bold')
     ax2.set_xticks(x_pos)
     ax2.set_xticklabels([f'Day {d}' for d in days], rotation=0, fontsize=10)
     ax2.grid(axis='y', alpha=0.3, linestyle='--')
@@ -973,9 +973,9 @@ def visualize_experiment_2_routes(
     # 3. 回退比对比
     ax3 = axes[0, 2]
     bars3 = ax3.bar(x_pos, backtracking_ratios, color=colors, alpha=0.7, edgecolor='black')
-    ax3.set_xlabel('Day / 天数', fontsize=11)
-    ax3.set_ylabel('Backtracking Ratio / 回退比', fontsize=11)
-    ax3.set_title('Backtracking Ratio per Day / 每日回退比', fontsize=12, fontweight='bold')
+    ax3.set_xlabel('Day', fontsize=11)
+    ax3.set_ylabel('Backtracking Ratio', fontsize=11)
+    ax3.set_title('Backtracking Ratio per Day', fontsize=12, fontweight='bold')
     ax3.set_xticks(x_pos)
     ax3.set_xticklabels([f'Day {d}' for d in days], rotation=0, fontsize=10)
     ax3.grid(axis='y', alpha=0.3, linestyle='--')
@@ -993,9 +993,9 @@ def visualize_experiment_2_routes(
     ax4 = axes[1, 0]
     if poi_counts:
         bars4 = ax4.bar(x_pos, poi_counts, color=colors, alpha=0.7, edgecolor='black')
-        ax4.set_xlabel('Day / 天数', fontsize=11)
-        ax4.set_ylabel('Number of POIs / POI数量', fontsize=11)
-        ax4.set_title('POIs per Day / 每日POI数量', fontsize=12, fontweight='bold')
+        ax4.set_xlabel('Day', fontsize=11)
+        ax4.set_ylabel('Number of POIs', fontsize=11)
+        ax4.set_title('POIs per Day', fontsize=12, fontweight='bold')
         ax4.set_xticks(x_pos)
         ax4.set_xticklabels([f'Day {d}' for d in days], rotation=0, fontsize=10)
         ax4.grid(axis='y', alpha=0.3, linestyle='--')
@@ -1016,9 +1016,9 @@ def visualize_experiment_2_routes(
     scatter = ax5.scatter(route_lengths, time_efficiencies, 
                          c=range(len(days)), cmap='viridis', 
                          s=100, alpha=0.6, edgecolors='black')
-    ax5.set_xlabel('Route Length (km) / 路线长度（公里）', fontsize=11)
-    ax5.set_ylabel('Time Efficiency / 时间效率', fontsize=11)
-    ax5.set_title('Route Length vs Time Efficiency / 路线长度 vs 时间效率', 
+    ax5.set_xlabel('Route Length (km)', fontsize=11)
+    ax5.set_ylabel('Time Efficiency', fontsize=11)
+    ax5.set_title('Route Length vs Time Efficiency', 
                  fontsize=12, fontweight='bold')
     ax5.grid(alpha=0.3, linestyle='--')
     
@@ -1043,7 +1043,7 @@ def visualize_experiment_2_routes(
     total_pois = sum(poi_counts) if poi_counts else 0
     
     summary_text = f"""
-Summary Statistics / 汇总统计
+Summary Statistics
 {'=' * 30}
 Total Days: {len(days)}
 Total Route Length: {total_length:.2f} km
@@ -1064,7 +1064,7 @@ Average Backtracking Ratio: {avg_backtracking:.3f}
     
     # 保存图片
     if output_path is None:
-        output_path = Path("results/experiment2_routes.png")
+        output_path = Path("results/experiment2_routes.pdf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
     print(f"✓ Experiment 2 routes visualization saved to: {output_path}")
