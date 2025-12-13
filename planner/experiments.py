@@ -4,8 +4,9 @@ High-level experiment runners.
 整体实验控制：
 - Experiment 1: POI Clustering → 推断出天数（clusters）
 - Experiment 2: Daily Route Optimization
-- Experiment 3: Real-world Behavior Alignment（基于 Gowalla）
+- Experiment 3: Real-world Behavior Alignment（基于 Gowalla）- 路线级对齐
 - Experiment 4: Ablation Study
+- Experiment 5: POI Popularity Alignment（基于 Gowalla）- POI 热度对齐
 """
 
 from __future__ import annotations
@@ -17,11 +18,18 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from .config import CONFIG
-from .data_loader import load_gowalla_checkins, load_osm_pois, load_pois, filter_pois
+from .config import CONFIG, CITY_BBOXES
+from .data_loader import (
+    load_gowalla_checkins,
+    load_osm_pois,
+    load_pois,
+    filter_pois,
+    match_gowalla_to_pois,
+    extract_user_trajectories,
+)
 from .clustering import ClusteringResult, select_best_clustering
 from .routing import build_route
-from .evaluation import evaluate_route, evaluate_alignment
+from .evaluation import evaluate_route, evaluate_alignment, evaluate_poi_popularity_alignment
 from .ablation import run_ablation_experiments
 from .results_evaluation import evaluate_experiment_results, print_evaluation_summary, save_evaluation_report
 from .visualization import (
@@ -222,32 +230,154 @@ def experiment_3_behavior_alignment(
     return asdict(metrics)
 
 
-def build_synthetic_gowalla_sequence(pois: pd.DataFrame, order: List[int]) -> List[int]:
-    """Toy helper: map POI indices to synthetic location IDs.
-
-    真正实验中，你会根据 Gowalla_totalCheckins 中的 location_id
-    与 OSM POI 做匹配（例如基于 spatial join），这里仅提供接口示例。
-    """
-    location_ids = []
-    for i in order:
-        poi_id_str = str(pois.iloc[i]["poi_id"])
-        
-        # Handle different POI ID formats:
-        # 1. Plain integer: "12345"
-        # 2. Tuple string: "('node', 5222387777)"
-        # 3. Other formats
-        
-        # Try to extract numeric ID from tuple format
-        match = re.search(r'(\d+)', poi_id_str)
-        if match:
-            numeric_id = int(match.group(1))
-        else:
-            # Fallback: use hash of string as ID
-            numeric_id = abs(hash(poi_id_str)) % (10**10)
-        
-        location_ids.append(numeric_id)
+def experiment_5_poi_popularity_alignment(
+    planned_routes: Dict[int, List[int]],
+    day_pois: Dict[int, pd.DataFrame],
+    real_trajectories: List[List[int]],
+    pois: pd.DataFrame,
+    k: int = 10,
+):
+    """Experiment 5 — POI popularity alignment between planned routes and real-world behavior.
     
-    return location_ids
+    与 Experiment 3 不同，这个实验关注 POI 热度对齐而非路线级对齐。
+    
+    Args:
+        planned_routes: Dict mapping day to list of POI indices (visit order)
+        day_pois: Dict mapping day to POI DataFrame
+        real_trajectories: List of real user trajectories (each is a list of POI indices)
+        pois: Full POI DataFrame with all POIs
+        k: Number of top POIs to consider for Top-K metrics
+    
+    Returns:
+        Dict with popularity alignment metrics
+    """
+    from collections import Counter
+    
+    # Calculate planned POI popularity (visit frequency across all planned routes)
+    planned_poi_counts = Counter()
+    for day, route in planned_routes.items():
+        day_df = day_pois[day]
+        for pos_idx in route:
+            # Get the actual POI ID from the day's DataFrame
+            poi_row = day_df.iloc[pos_idx]
+            poi_id = poi_row.name if 'poi_id' not in poi_row else poi_row['poi_id']
+            planned_poi_counts[poi_id] += 1
+    
+    # Sort by popularity (descending)
+    planned_popularity = sorted(
+        [(poi_id, count) for poi_id, count in planned_poi_counts.items()],
+        key=lambda x: x[1],
+        reverse=True
+    )
+    
+    # Calculate real POI popularity (visit frequency in real trajectories)
+    real_poi_counts = Counter()
+    for traj in real_trajectories:
+        for poi_idx in traj:
+            # POI index in real trajectories should correspond to POI ID in the full dataset
+            if poi_idx < len(pois):
+                poi_id = pois.iloc[poi_idx].name if 'poi_id' not in pois.iloc[poi_idx] else pois.iloc[poi_idx]['poi_id']
+                real_poi_counts[poi_id] += 1
+    
+    # Sort by popularity (descending)
+    real_popularity = sorted(
+        [(poi_id, count) for poi_id, count in real_poi_counts.items()],
+        key=lambda x: x[1],
+        reverse=True
+    )
+    
+    # Evaluate popularity alignment
+    metrics = evaluate_poi_popularity_alignment(
+        planned_popularity=planned_popularity,
+        real_popularity=real_popularity,
+        k=k,
+    )
+    
+    return {
+        'top_k_overlap': metrics.top_k_overlap,
+        'spearman_correlation': metrics.spearman_correlation,
+        'coverage_at_k': metrics.coverage_at_k,
+        'k': k,
+        'planned_unique_pois': len(planned_popularity),
+        'real_unique_pois': len(real_popularity),
+    }
+
+
+def get_real_gowalla_trajectories(
+    pois: pd.DataFrame,
+    city: str = "beijing",
+    max_trajectories: Optional[int] = None,
+) -> List[List[int]]:
+    """Get real Gowalla user trajectories matched to POIs.
+    
+    从 Gowalla 数据中提取真实用户轨迹，并匹配到 OSM POI。
+    
+    Args:
+        pois: POI DataFrame
+        city: City name (beijing, shanghai, chengdu)
+        max_trajectories: Maximum number of trajectories to return
+    
+    Returns:
+        List of trajectories, where each trajectory is a list of POI indices
+    """
+    city_lower = city.lower()
+    
+    if city_lower not in CITY_BBOXES:
+        print(f"Warning: City '{city}' not in CITY_BBOXES, using synthetic data")
+        return []
+    
+    try:
+        # Load Gowalla data for the city
+        bbox = CITY_BBOXES[city_lower]
+        print(f"  Loading Gowalla data for {city} (bbox: {bbox})...")
+        gowalla_df = load_gowalla_checkins(city_bbox=bbox)
+        
+        if len(gowalla_df) == 0:
+            print(f"  No Gowalla check-ins found in {city} area")
+            return []
+        
+        print(f"  Found {len(gowalla_df):,} check-ins in {city}")
+        
+        # Match Gowalla locations to POIs
+        print(f"  Matching Gowalla locations to {len(pois)} POIs...")
+        matching = match_gowalla_to_pois(
+            gowalla_df,
+            pois,
+            max_distance_km=CONFIG.alignment.max_matching_distance_km,
+        )
+        
+        if len(matching) == 0:
+            print(f"  No Gowalla locations matched to POIs (try increasing max_distance_km)")
+            return []
+        
+        print(f"  Matched {len(matching)} unique locations to POIs")
+        
+        # Extract user trajectories
+        print(f"  Extracting user trajectories...")
+        user_trajectories = extract_user_trajectories(
+            gowalla_df,
+            matching,
+            min_checkins=CONFIG.alignment.min_checkins_per_user,
+        )
+        
+        if len(user_trajectories) == 0:
+            print(f"  No valid user trajectories found")
+            return []
+        
+        print(f"  Extracted {len(user_trajectories)} user trajectories")
+        
+        # Convert to list and limit if needed
+        trajectories = list(user_trajectories.values())
+        
+        if max_trajectories is not None and len(trajectories) > max_trajectories:
+            trajectories = trajectories[:max_trajectories]
+            print(f"  Limited to {max_trajectories} trajectories")
+        
+        return trajectories
+        
+    except Exception as e:
+        print(f"  Error loading Gowalla data: {e}")
+        return []
 
 
 def experiment_4_ablation(pois: pd.DataFrame):
@@ -445,20 +575,63 @@ def run_all_experiments():
         print("  (This is optional - install matplotlib for visualization)")
 
     print("\n=== Experiment 3: Real-world Behavior Alignment ===")
-    sample_day = next(iter(routes.keys()))
-    planned = build_synthetic_gowalla_sequence(day_pois[sample_day], routes[sample_day])
+    
+    # Get city name from config
+    city = CONFIG.llm.city if CONFIG.llm.enabled and CONFIG.llm.city else "beijing"
+    
+    # Initialize align_metrics
+    align_metrics = None
     
     if gowalla_available:
-        # TODO: 使用真实的 Gowalla 轨迹数据
-        print("  (Gowalla data available, but currently using synthetic trajectory for demonstration)")
-        real_traj = planned[::-1]  # 示例：使用反转的路线作为"真实"轨迹
+        print(f"Loading real Gowalla trajectories for {city}...")
+        real_trajectories = get_real_gowalla_trajectories(
+            pois=pois,
+            city=city,
+            max_trajectories=CONFIG.alignment.max_trajectories,
+        )
+        
+        if len(real_trajectories) > 0:
+            print(f"\n✓ Successfully loaded {len(real_trajectories)} real user trajectories")
+            
+            # Compare planned routes with real trajectories
+            sample_day = next(iter(routes.keys()))
+            planned_route = routes[sample_day]
+            
+            # Calculate alignment metrics for multiple real trajectories
+            all_metrics = []
+            for i, real_traj in enumerate(real_trajectories[:10]):  # Compare with first 10
+                metrics = experiment_3_behavior_alignment(planned_route, real_traj)
+                all_metrics.append(metrics)
+            
+            # Average metrics
+            if all_metrics:
+                align_metrics = {
+                    key: sum(m[key] for m in all_metrics) / len(all_metrics)
+                    for key in all_metrics[0].keys()
+                }
+                print("\nAverage alignment metrics (comparing with 10 real trajectories):")
+                for key, value in align_metrics.items():
+                    print(f"  {key}: {value:.4f}")
+            
+            # Show example comparison
+            print(f"\nExample comparison:")
+            print(f"  Planned route (Day {sample_day}): {len(planned_route)} POIs")
+            print(f"  Real trajectory example: {len(real_trajectories[0])} POIs")
+            print(f"  First alignment metrics: {all_metrics[0]}")
+        else:
+            print("  ⚠️  No real Gowalla trajectories found, using synthetic data for demonstration")
+            sample_day = next(iter(routes.keys()))
+            planned_route = routes[sample_day]
+            real_traj = planned_route[::-1]  # Fallback: reversed route
+            align_metrics = experiment_3_behavior_alignment(planned_route, real_traj)
+            print("Alignment metrics (synthetic):", align_metrics)
     else:
-        print("  (Using synthetic trajectory - Gowalla data not available)")
-        # 示例：假设真实轨迹与 planned 稍有扰动
-        real_traj = planned[::-1]
-    
-    align_metrics = experiment_3_behavior_alignment(planned, real_traj)
-    print("Alignment metrics:", align_metrics)
+        print("  ℹ️  Gowalla data not available, using synthetic trajectory")
+        sample_day = next(iter(routes.keys()))
+        planned_route = routes[sample_day]
+        real_traj = planned_route[::-1]  # Fallback: reversed route
+        align_metrics = experiment_3_behavior_alignment(planned_route, real_traj)
+        print("Alignment metrics (synthetic):", align_metrics)
 
     print("\n=== Experiment 4: Ablation ===")
     print("Testing impact of:")
@@ -469,6 +642,46 @@ def run_all_experiments():
         print(f"{name}:")
         print(f"  Days: {res.get('n_days', 0)}, Silhouette: {res.get('clustering_silhouette', 0):.3f}")
         print(f"  Route length: {res['route_length_km']:.2f} km, Time efficiency: {res['time_efficiency']:.2f}")
+    
+    print("\n=== Experiment 5: POI Popularity Alignment ===")
+    print("Comparing POI popularity between planned routes and real-world behavior")
+    
+    # Initialize popularity_metrics
+    popularity_metrics = None
+    
+    if gowalla_available:
+        print(f"Using real Gowalla trajectories for {city}...")
+        
+        # Reuse real trajectories from Experiment 3
+        if 'real_trajectories' not in locals():
+            real_trajectories = get_real_gowalla_trajectories(
+                pois=pois,
+                city=city,
+                max_trajectories=CONFIG.alignment.max_trajectories,
+            )
+        
+        if len(real_trajectories) > 0:
+            print(f"✓ Analyzing POI popularity across {len(real_trajectories)} real trajectories")
+            
+            # Run popularity alignment experiment
+            popularity_metrics = experiment_5_poi_popularity_alignment(
+                planned_routes=routes,
+                day_pois=day_pois,
+                real_trajectories=real_trajectories,
+                pois=pois,
+                k=10,  # Top-10 POIs
+            )
+            
+            print(f"\nPOI Popularity Alignment Metrics (Top-{popularity_metrics['k']}):")
+            print(f"  Top-K POI Overlap: {popularity_metrics['top_k_overlap']:.4f}")
+            print(f"  Spearman Rank Correlation: {popularity_metrics['spearman_correlation']:.4f}")
+            print(f"  Coverage@K: {popularity_metrics['coverage_at_k']:.4f}")
+            print(f"  Planned unique POIs: {popularity_metrics['planned_unique_pois']}")
+            print(f"  Real unique POIs: {popularity_metrics['real_unique_pois']}")
+        else:
+            print("  ⚠️  No real Gowalla trajectories found, skipping popularity alignment")
+    else:
+        print("  ℹ️  Gowalla data not available, skipping popularity alignment")
     
     # Visualize ablation results
     print("\n=== Generating Ablation Visualizations ===")

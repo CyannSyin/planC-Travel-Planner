@@ -19,15 +19,15 @@ def main():
     
     # Configure LLM mode
     CONFIG.llm.enabled = True
-    CONFIG.llm.city = "Shanghai"  # 修改为你想要的城市
-    CONFIG.llm.num_days = 4
+    CONFIG.llm.city = "new york"  # 城市名称（小写，与 CITY_BBOXES 匹配）
+    CONFIG.llm.num_days = 5  # 推荐3天（更快完成实验）
     CONFIG.llm.preferences = "cultural sites, museums, parks"
     CONFIG.llm.budget = "mid-range"
     CONFIG.llm.interests = ["museums", "parks", "food", "history"]
     CONFIG.llm.num_pois = None  # 自动计算：num_days * 6
     
     # Optional: adjust POI filter settings
-    CONFIG.poi_filter.max_pois = 20  # 最多选择20个POI
+    CONFIG.poi_filter.max_pois = 50  # 最多选择20个POI
     CONFIG.poi_filter.min_rating = 3.5  # 降低最低评分要求（LLM推荐的评分可能不同）
     
     print("=" * 60)

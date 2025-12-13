@@ -157,3 +157,137 @@ def evaluate_alignment(
     return AlignmentMetrics(jaccard=jacc, overlap=ov, dtw=dtw)
 
 
+# ==== POI Popularity Alignment Metrics ====
+
+
+@dataclass
+class PopularityAlignmentMetrics:
+    """Metrics for POI popularity alignment between planned and real-world visits."""
+    top_k_overlap: float  # Overlap of top-K POIs
+    spearman_correlation: float  # Rank correlation
+    coverage_at_k: float  # Coverage@K: how many of top-K real POIs are covered
+
+
+def top_k_overlap(
+    planned_popularity: List[Tuple[int, float]],
+    real_popularity: List[Tuple[int, float]],
+    k: int,
+) -> float:
+    """Calculate overlap between top-K POIs from planned and real popularity rankings.
+    
+    Args:
+        planned_popularity: List of (poi_id, popularity_score) tuples from planned routes
+        real_popularity: List of (poi_id, popularity_score) tuples from real trajectories
+        k: Number of top POIs to consider
+    
+    Returns:
+        Overlap ratio (0 to 1): |top_k_planned ∩ top_k_real| / k
+    """
+    if k <= 0 or not planned_popularity or not real_popularity:
+        return 0.0
+    
+    # Get top-K POI IDs
+    top_k_planned = set([poi_id for poi_id, _ in planned_popularity[:k]])
+    top_k_real = set([poi_id for poi_id, _ in real_popularity[:k]])
+    
+    # Calculate overlap
+    overlap = len(top_k_planned & top_k_real)
+    return float(overlap / k)
+
+
+def spearman_rank_correlation(
+    planned_popularity: List[Tuple[int, float]],
+    real_popularity: List[Tuple[int, float]],
+) -> float:
+    """Calculate Spearman rank correlation between planned and real POI popularity.
+    
+    Args:
+        planned_popularity: List of (poi_id, popularity_score) tuples from planned routes
+        real_popularity: List of (poi_id, popularity_score) tuples from real trajectories
+    
+    Returns:
+        Spearman correlation coefficient (-1 to 1)
+    """
+    if not planned_popularity or not real_popularity:
+        return 0.0
+    
+    # Create rank mappings
+    planned_ranks = {poi_id: rank for rank, (poi_id, _) in enumerate(planned_popularity, 1)}
+    real_ranks = {poi_id: rank for rank, (poi_id, _) in enumerate(real_popularity, 1)}
+    
+    # Find common POIs
+    common_pois = set(planned_ranks.keys()) & set(real_ranks.keys())
+    
+    if len(common_pois) < 2:
+        return 0.0
+    
+    # Get ranks for common POIs
+    planned_rank_values = [planned_ranks[poi_id] for poi_id in common_pois]
+    real_rank_values = [real_ranks[poi_id] for poi_id in common_pois]
+    
+    # Calculate Spearman correlation using numpy
+    try:
+        from scipy.stats import spearmanr
+        correlation, _ = spearmanr(planned_rank_values, real_rank_values)
+        return float(correlation) if not np.isnan(correlation) else 0.0
+    except ImportError:
+        # Fallback: use numpy correlation on ranks
+        correlation = np.corrcoef(planned_rank_values, real_rank_values)[0, 1]
+        return float(correlation) if not np.isnan(correlation) else 0.0
+
+
+def coverage_at_k(
+    planned_popularity: List[Tuple[int, float]],
+    real_popularity: List[Tuple[int, float]],
+    k: int,
+) -> float:
+    """Calculate coverage@K: how many of the top-K real POIs are covered in planned routes.
+    
+    Args:
+        planned_popularity: List of (poi_id, popularity_score) tuples from planned routes
+        real_popularity: List of (poi_id, popularity_score) tuples from real trajectories
+        k: Number of top real POIs to consider
+    
+    Returns:
+        Coverage ratio (0 to 1): |top_k_real ∩ all_planned| / k
+    """
+    if k <= 0 or not planned_popularity or not real_popularity:
+        return 0.0
+    
+    # Get top-K real POI IDs
+    top_k_real = set([poi_id for poi_id, _ in real_popularity[:k]])
+    
+    # Get all planned POI IDs
+    all_planned = set([poi_id for poi_id, _ in planned_popularity])
+    
+    # Calculate coverage
+    covered = len(top_k_real & all_planned)
+    return float(covered / k)
+
+
+def evaluate_poi_popularity_alignment(
+    planned_popularity: List[Tuple[int, float]],
+    real_popularity: List[Tuple[int, float]],
+    k: int = 10,
+) -> PopularityAlignmentMetrics:
+    """Evaluate alignment between planned and real POI popularity.
+    
+    Args:
+        planned_popularity: List of (poi_id, popularity_score) sorted by popularity (descending)
+        real_popularity: List of (poi_id, popularity_score) sorted by popularity (descending)
+        k: Number of top POIs to consider for Top-K metrics
+    
+    Returns:
+        PopularityAlignmentMetrics with top_k_overlap, spearman_correlation, and coverage_at_k
+    """
+    top_k_ov = top_k_overlap(planned_popularity, real_popularity, k)
+    spearman_corr = spearman_rank_correlation(planned_popularity, real_popularity)
+    coverage_k = coverage_at_k(planned_popularity, real_popularity, k)
+    
+    return PopularityAlignmentMetrics(
+        top_k_overlap=top_k_ov,
+        spearman_correlation=spearman_corr,
+        coverage_at_k=coverage_k,
+    )
+
+

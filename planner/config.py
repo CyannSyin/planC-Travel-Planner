@@ -78,6 +78,20 @@ class AlignmentConfig:
 
     # 最大采样的 Gowalla 轨迹数，避免过大内存
     max_trajectories: int = 5000
+    # 匹配 Gowalla location 到 POI 的最大距离阈值（公里）
+    max_matching_distance_km: float = 0.5
+    # 用户轨迹最少签到数
+    min_checkins_per_user: int = 5
+
+
+# 城市边界框配置 (lat_min, lat_max, lon_min, lon_max)
+CITY_BBOXES = {
+    "beijing": (39.4, 41.0, 115.7, 117.4),
+    "shanghai": (30.7, 31.5, 121.0, 122.0),
+    "chengdu": (30.4, 31.0, 103.8, 104.5),
+    "guangzhou": (22.5, 23.5, 113.0, 114.5),
+    "new york": (40.7, 40.9, -74.1, -73.9),
+}
 
 
 @dataclass
