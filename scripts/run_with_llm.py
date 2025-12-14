@@ -19,7 +19,7 @@ def main():
     
     # Configure LLM mode
     CONFIG.llm.enabled = True
-    CONFIG.llm.city = "new york"  # 城市名称（小写，与 CITY_BBOXES 匹配）
+    CONFIG.llm.city = "shanghai"  # 城市名称（小写，与 CITY_BBOXES 匹配）
     CONFIG.llm.num_days = 5  # 推荐3天（更快完成实验）
     CONFIG.llm.preferences = "cultural sites, museums, parks"
     CONFIG.llm.budget = "mid-range"
