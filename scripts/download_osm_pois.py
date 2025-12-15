@@ -345,8 +345,13 @@ def download_osm_pois(
     # Check if already exists
     if output_path.exists():
         print(f"OSM POI data already exists at {output_path}")
-        response = input("Re-download? (y/N): ").strip().lower()
-        if response != 'y':
+        try:
+            response = input("Re-download? (y/N): ").strip().lower()
+            if response != 'y':
+                return pd.read_csv(output_path)
+        except (EOFError, KeyboardInterrupt):
+            # Non-interactive environment or user cancelled
+            print("  Using existing file (non-interactive mode)")
             return pd.read_csv(output_path)
     
     if method == "osmnx":

@@ -40,6 +40,7 @@ from .visualization import (
     visualize_experiment_1_clustering_map,
     visualize_experiment_2_routes,
     visualize_experiment_2_routes_map,
+    visualize_experiment_5_popularity_alignment,
 )
 
 
@@ -682,6 +683,53 @@ def run_all_experiments():
             print("  ⚠️  No real Gowalla trajectories found, skipping popularity alignment")
     else:
         print("  ℹ️  Gowalla data not available, skipping popularity alignment")
+    
+    # Visualize Experiment 5 results (if data available)
+    if popularity_metrics and gowalla_available and len(real_trajectories) > 0:
+        print("\n=== Generating Experiment 5 Visualizations ===")
+        try:
+            from collections import Counter
+            
+            # Calculate planned POI popularity
+            planned_poi_counts = Counter()
+            for day, route in routes.items():
+                day_df = day_pois[day]
+                for pos_idx in route:
+                    poi_row = day_df.iloc[pos_idx]
+                    poi_id = poi_row.name if 'poi_id' not in poi_row else poi_row['poi_id']
+                    planned_poi_counts[poi_id] += 1
+            
+            planned_popularity_data = sorted(
+                [(poi_id, count) for poi_id, count in planned_poi_counts.items()],
+                key=lambda x: x[1],
+                reverse=True
+            )
+            
+            # Calculate real POI popularity
+            real_poi_counts = Counter()
+            for traj in real_trajectories:
+                for poi_idx in traj:
+                    if poi_idx < len(pois):
+                        poi_id = pois.iloc[poi_idx].name if 'poi_id' not in pois.iloc[poi_idx] else pois.iloc[poi_idx]['poi_id']
+                        real_poi_counts[poi_id] += 1
+            
+            real_popularity_data = sorted(
+                [(poi_id, count) for poi_id, count in real_poi_counts.items()],
+                key=lambda x: x[1],
+                reverse=True
+            )
+            
+            visualize_experiment_5_popularity_alignment(
+                popularity_metrics=popularity_metrics,
+                planned_popularity=planned_popularity_data,
+                real_popularity=real_popularity_data,
+                output_path=Path("results/experiment5_popularity.pdf"),
+                show_plot=False,
+            )
+            print("✓ Experiment 5 popularity alignment visualization generated successfully")
+        except Exception as e:
+            print(f"Note: Could not generate Experiment 5 visualizations: {e}")
+            print("  (This is optional - install matplotlib for visualization)")
     
     # Visualize ablation results
     print("\n=== Generating Ablation Visualizations ===")

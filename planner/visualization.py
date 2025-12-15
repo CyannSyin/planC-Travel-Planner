@@ -1076,3 +1076,250 @@ Average Backtracking Ratio: {avg_backtracking:.3f}
     
     return fig
 
+
+def visualize_experiment_5_popularity_alignment(
+    popularity_metrics: Dict,
+    planned_popularity: List[tuple],
+    real_popularity: List[tuple],
+    output_path: Optional[Path] = None,
+    figsize: tuple = (18, 10),
+    dpi: int = 100,
+    show_plot: bool = True,
+    top_n: int = 20,
+):
+    """Visualize Experiment 5 (POI Popularity Alignment) results.
+    
+    可视化实验5（POI热度对齐）结果，包含：
+    - Top-K POI重叠率、Spearman相关性、Coverage@K指标
+    - 规划路线与真实轨迹的POI热度排名对比
+    - 热门POI的访问频率对比
+    
+    Args:
+        popularity_metrics: Dictionary with popularity alignment metrics
+        planned_popularity: List of (poi_id, visit_count) tuples from planned routes
+        real_popularity: List of (poi_id, visit_count) tuples from real trajectories
+        output_path: Path to save the figure
+        figsize: Figure size (width, height)
+        dpi: Resolution for saved figure
+        show_plot: Whether to display the plot interactively
+        top_n: Number of top POIs to display in ranking comparison
+    """
+    
+    if not popularity_metrics:
+        print("Warning: No popularity metrics provided for visualization.")
+        return
+    
+    # 创建图形：2x3 布局
+    fig, axes = plt.subplots(2, 3, figsize=figsize)
+    fig.suptitle('Experiment 5: POI Popularity Alignment Results', 
+                 fontsize=16, fontweight='bold')
+    
+    # 1. 指标柱状图
+    ax1 = axes[0, 0]
+    metrics_names = ['Top-K\nOverlap', 'Spearman\nCorrelation', 'Coverage@K']
+    metrics_values = [
+        popularity_metrics.get('top_k_overlap', 0.0),
+        popularity_metrics.get('spearman_correlation', 0.0),
+        popularity_metrics.get('coverage_at_k', 0.0)
+    ]
+    colors_metrics = ['#4CAF50', '#2196F3', '#FF9800']
+    
+    bars1 = ax1.bar(range(len(metrics_names)), metrics_values, 
+                    color=colors_metrics, alpha=0.7, edgecolor='black')
+    ax1.set_xlabel('Metrics', fontsize=11)
+    ax1.set_ylabel('Score', fontsize=11)
+    ax1.set_title(f'Popularity Alignment Metrics (K={popularity_metrics.get("k", 10)})', 
+                  fontsize=12, fontweight='bold')
+    ax1.set_xticks(range(len(metrics_names)))
+    ax1.set_xticklabels(metrics_names, fontsize=10)
+    ax1.set_ylim([-0.1, 1.1])
+    ax1.axhline(y=0, color='gray', linestyle='-', linewidth=0.5)
+    ax1.grid(axis='y', alpha=0.3, linestyle='--')
+    
+    # 添加数值标签
+    for bar, val in zip(bars1, metrics_values):
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height,
+                f'{val:.3f}',
+                ha='center', va='bottom' if val >= 0 else 'top', fontsize=10)
+    
+    # 2. Top-N POI排名对比（规划 vs 真实）
+    ax2 = axes[0, 1]
+    
+    # 获取Top-N POI
+    top_n_planned = planned_popularity[:min(top_n, len(planned_popularity))]
+    top_n_real = real_popularity[:min(top_n, len(real_popularity))]
+    
+    # 创建POI ID到排名的映射
+    planned_ranks = {poi_id: rank for rank, (poi_id, _) in enumerate(top_n_planned, 1)}
+    real_ranks = {poi_id: rank for rank, (poi_id, _) in enumerate(top_n_real, 1)}
+    
+    # 找到共同的POI
+    common_pois = set(planned_ranks.keys()) & set(real_ranks.keys())
+    
+    if common_pois:
+        common_poi_list = sorted(list(common_pois), 
+                                key=lambda x: planned_ranks[x])
+        
+        planned_rank_values = [planned_ranks[poi] for poi in common_poi_list]
+        real_rank_values = [real_ranks[poi] for poi in common_poi_list]
+        
+        # 绘制排名对比散点图
+        ax2.scatter(planned_rank_values, real_rank_values, 
+                   s=100, alpha=0.6, edgecolors='black', c='#9C27B0')
+        
+        # 添加对角线（完美对齐）
+        max_rank = max(max(planned_rank_values), max(real_rank_values))
+        ax2.plot([1, max_rank], [1, max_rank], 'r--', linewidth=2, 
+                alpha=0.5, label='Perfect Alignment')
+        
+        ax2.set_xlabel('Planned Route Rank', fontsize=11)
+        ax2.set_ylabel('Real Trajectory Rank', fontsize=11)
+        ax2.set_title(f'Top-{top_n} POI Rank Comparison\n({len(common_pois)} common POIs)', 
+                     fontsize=12, fontweight='bold')
+        ax2.grid(alpha=0.3, linestyle='--')
+        ax2.legend(fontsize=9)
+        
+        # 反转Y轴使排名从上到下递增
+        ax2.invert_yaxis()
+        ax2.invert_xaxis()
+    else:
+        ax2.text(0.5, 0.5, 'No common POIs in Top-N', 
+                ha='center', va='center', transform=ax2.transAxes, fontsize=12)
+        ax2.axis('off')
+    
+    # 3. 访问频率对比（Top-10）
+    ax3 = axes[0, 2]
+    
+    top_10_planned = planned_popularity[:min(10, len(planned_popularity))]
+    top_10_real = real_popularity[:min(10, len(real_popularity))]
+    
+    # 获取所有Top-10 POI的并集
+    all_top_pois = set([poi_id for poi_id, _ in top_10_planned] + 
+                       [poi_id for poi_id, _ in top_10_real])
+    
+    # 创建POI ID到访问次数的映射
+    planned_counts = {poi_id: count for poi_id, count in top_10_planned}
+    real_counts = {poi_id: count for poi_id, count in top_10_real}
+    
+    # 准备数据
+    poi_labels = [f'POI-{poi_id}' for poi_id in sorted(all_top_pois)[:10]]
+    planned_values = [planned_counts.get(poi_id, 0) for poi_id in sorted(all_top_pois)[:10]]
+    real_values = [real_counts.get(poi_id, 0) for poi_id in sorted(all_top_pois)[:10]]
+    
+    x_pos = np.arange(len(poi_labels))
+    width = 0.35
+    
+    bars_planned = ax3.bar(x_pos - width/2, planned_values, width, 
+                          label='Planned', color='#4CAF50', alpha=0.7, edgecolor='black')
+    bars_real = ax3.bar(x_pos + width/2, real_values, width,
+                       label='Real', color='#FF5722', alpha=0.7, edgecolor='black')
+    
+    ax3.set_xlabel('POI ID', fontsize=11)
+    ax3.set_ylabel('Visit Count', fontsize=11)
+    ax3.set_title('Top-10 POI Visit Frequency Comparison', fontsize=12, fontweight='bold')
+    ax3.set_xticks(x_pos)
+    ax3.set_xticklabels(poi_labels, rotation=45, ha='right', fontsize=9)
+    ax3.legend(fontsize=9)
+    ax3.grid(axis='y', alpha=0.3, linestyle='--')
+    
+    # 4. 规划路线POI热度分布
+    ax4 = axes[1, 0]
+    
+    if len(planned_popularity) > 0:
+        planned_counts_only = [count for _, count in planned_popularity[:30]]
+        ax4.plot(range(1, len(planned_counts_only) + 1), planned_counts_only,
+                marker='o', linewidth=2, markersize=6, color='#4CAF50', 
+                label='Planned Route')
+        ax4.fill_between(range(1, len(planned_counts_only) + 1), 
+                        planned_counts_only, alpha=0.3, color='#4CAF50')
+        
+        ax4.set_xlabel('POI Rank', fontsize=11)
+        ax4.set_ylabel('Visit Count', fontsize=11)
+        ax4.set_title('Planned Route POI Popularity Distribution', 
+                     fontsize=12, fontweight='bold')
+        ax4.grid(alpha=0.3, linestyle='--')
+        ax4.legend(fontsize=9)
+    else:
+        ax4.text(0.5, 0.5, 'No planned popularity data', 
+                ha='center', va='center', transform=ax4.transAxes, fontsize=12)
+        ax4.axis('off')
+    
+    # 5. 真实轨迹POI热度分布
+    ax5 = axes[1, 1]
+    
+    if len(real_popularity) > 0:
+        real_counts_only = [count for _, count in real_popularity[:30]]
+        ax5.plot(range(1, len(real_counts_only) + 1), real_counts_only,
+                marker='s', linewidth=2, markersize=6, color='#FF5722',
+                label='Real Trajectory')
+        ax5.fill_between(range(1, len(real_counts_only) + 1), 
+                        real_counts_only, alpha=0.3, color='#FF5722')
+        
+        ax5.set_xlabel('POI Rank', fontsize=11)
+        ax5.set_ylabel('Visit Count', fontsize=11)
+        ax5.set_title('Real Trajectory POI Popularity Distribution', 
+                     fontsize=12, fontweight='bold')
+        ax5.grid(alpha=0.3, linestyle='--')
+        ax5.legend(fontsize=9)
+    else:
+        ax5.text(0.5, 0.5, 'No real popularity data', 
+                ha='center', va='center', transform=ax5.transAxes, fontsize=12)
+        ax5.axis('off')
+    
+    # 6. 汇总统计
+    ax6 = axes[1, 2]
+    ax6.axis('off')
+    
+    k = popularity_metrics.get('k', 10)
+    top_k_overlap = popularity_metrics.get('top_k_overlap', 0.0)
+    spearman = popularity_metrics.get('spearman_correlation', 0.0)
+    coverage = popularity_metrics.get('coverage_at_k', 0.0)
+    planned_unique = popularity_metrics.get('planned_unique_pois', 0)
+    real_unique = popularity_metrics.get('real_unique_pois', 0)
+    
+    summary_text = f"""
+POI Popularity Alignment
+{'=' * 35}
+Top-K (K={k}):
+  Overlap: {top_k_overlap:.3f}
+  Coverage@K: {coverage:.3f}
+
+Rank Correlation:
+  Spearman: {spearman:.3f}
+
+POI Statistics:
+  Planned Unique POIs: {planned_unique}
+  Real Unique POIs: {real_unique}
+  Common POIs: {len(common_pois) if common_pois else 0}
+
+Interpretation:
+  • Top-K Overlap: {top_k_overlap*100:.1f}% of top-{k}
+    POIs match between planned
+    and real trajectories
+  • Spearman: {'Strong' if abs(spearman) > 0.7 else 'Moderate' if abs(spearman) > 0.4 else 'Weak'} 
+    {'positive' if spearman > 0 else 'negative'} correlation
+  • Coverage@K: {coverage*100:.1f}% of top-{k}
+    real POIs are covered in plan
+"""
+    
+    ax6.text(0.05, 0.5, summary_text, 
+            transform=ax6.transAxes, fontsize=10,
+            verticalalignment='center', family='monospace',
+            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    # 保存图片
+    if output_path is None:
+        output_path = Path("results/experiment5_popularity.pdf")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=dpi, bbox_inches='tight')
+    print(f"✓ Experiment 5 popularity alignment visualization saved to: {output_path}")
+    
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+    
+    return fig

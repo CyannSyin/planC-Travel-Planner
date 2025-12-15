@@ -110,7 +110,7 @@ class LLMConfig:
     LLM推荐配置：用于通过大语言模型推荐POI。
     """
     
-    enabled: bool = True  # 是否启用LLM推荐模式
+    enabled: bool = False  # 是否启用LLM推荐模式
     provider: str = "aihubmix"  # LLM提供商: openai, anthropic, google
     model: str = "gpt-4o-mini"  # 模型名称
     temperature: float = 0.7  # 生成温度 (0.0-2.0)

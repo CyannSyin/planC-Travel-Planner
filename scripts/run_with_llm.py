@@ -19,8 +19,8 @@ def main():
     
     # Configure LLM mode
     CONFIG.llm.enabled = True
-    CONFIG.llm.city = "shanghai"  # 城市名称（小写，与 CITY_BBOXES 匹配）
-    CONFIG.llm.num_days = 5  # 推荐3天（更快完成实验）
+    CONFIG.llm.city = "guangzhou"  # 城市名称（小写，与 CITY_BBOXES 匹配）
+    CONFIG.llm.num_days = 4  
     CONFIG.llm.preferences = "cultural sites, museums, parks"
     CONFIG.llm.budget = "mid-range"
     CONFIG.llm.interests = ["museums", "parks", "food", "history"]
@@ -28,7 +28,7 @@ def main():
     
     # Optional: adjust POI filter settings
     CONFIG.poi_filter.max_pois = 50  # 最多选择20个POI
-    CONFIG.poi_filter.min_rating = 3.5  # 降低最低评分要求（LLM推荐的评分可能不同）
+    CONFIG.poi_filter.min_rating = 4  # 降低最低评分要求（LLM推荐的评分可能不同）
     
     print("=" * 60)
     print("Running experiments with LLM-based POI recommendations")

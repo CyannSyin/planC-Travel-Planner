@@ -79,6 +79,9 @@ Outputs: 控制台打印实验结果；生成 `results/evaluation_summary.csv`�
 ## Data prep / 数据准备
 - OSM POIs → `data/city_pois.csv`  
   - 可用 `python scripts/download_data.py --city "Paris, France"` 自动下载/预处理，或自备同字段：`poi_id, lat, lon, category, rating, duration_min, popularity, name, opening_hours`。
+  - 支持非交互式环境：如果文件已存在，脚本会自动使用现有文件（无需手动确认）
+  - 使用 OSMnx 下载时可能出现 FutureWarning（关于 `geometries` 模块重命名为 `features`），不影响功能，可忽略
+  - 大区域查询会自动分割为多个子查询，可能需要较长时间
 - **Gowalla 轨迹** → `data/Gowalla_totalCheckins.txt`（`python scripts/download_gowalla.py` 或从 [Stanford SNAP](https://snap.stanford.edu/data/loc-gowalla.html) 下载）
   - Experiment 3 会自动按城市过滤、空间匹配到 POI、提取用户轨迹
 - LLM 缓存 → 自动写入 `data/llm_pois/{city}.csv`（需 `.env` 中提供对应 API Key）。
@@ -115,13 +118,16 @@ Outputs: 控制台打印实验结果；生成 `results/evaluation_summary.csv`�
   5. 输出多个真实轨迹的平均对齐分数
 - **Exp4 消融**：popularity on/off × 2-opt on/off（可扩展）；输出 route_length_km、time_efficiency。
 - **Exp5 POI 热度对齐**（基于 Gowalla 数据）：
-  1. 计算规划路线中 POI 的访问频率（热度）
-  2. 计算真实轨迹中 POI 的访问频率
-  3. 比较两者的一致性：
+  1. **数据来源**：
+     - **规划路线数据**：统计系统生成的旅行路线中每个 POI 的访问频率
+     - **真实轨迹数据**：从 Gowalla 签到数据中提取真实用户轨迹，统计每个 POI 的访问频率
+  2. **对比方式**：比较规划路线与真实轨迹的 POI 热度分布一致性
+  3. **评估指标**：
      - **Top-K Overlap**: Top-K 热门 POI 的重叠度（0-1，越高越好）
      - **Spearman 相关系数**: 热度排名的相关性（-1 到 1，越接近 1 越好）
      - **Coverage at K**: 规划路线覆盖真实 Top-K POI 的比例（0-1，越高越好）
-  4. 评估规划算法是否选择了真实用户最常访问的 POI
+  4. **目标**：评估规划算法是否选择了真实用户最常访问的 POI
+  5. **与 Exp3 的区别**：Exp3 关注路线顺序的相似性（Jaccard/Overlap/DTW），Exp5 关注 POI 访问频率的相似性（热度分布）
 
 ---
 
@@ -142,8 +148,9 @@ Outputs: 控制台打印实验结果；生成 `results/evaluation_summary.csv`�
 planner/           核心逻辑：config, data_loader, clustering, routing,
                    evaluation, experiments, ablation, results_evaluation, 
                    llm_recommender, visualization
-scripts/           download_data.py, download_gowalla.py, run_with_llm.py, 
-                   clean_city_pois.py, visualize_ablation.py
+scripts/           download_data.py (主下载脚本), download_gowalla.py, 
+                   download_osm_pois.py (OSM POI 下载), run_with_llm.py, 
+                   run_with_osm.py, clean_city_pois.py, visualize_ablation.py
 data/              city_pois.csv, Gowalla_totalCheckins.txt, llm_pois/
 results/           evaluation_summary.csv (运行后生成)
 env.example        环境变量模板
@@ -154,6 +161,11 @@ requirements.txt   依赖
 
 ## Troubleshooting / 常见问题
 - **缺少数据**：确认 `data/city_pois.csv` 与 `data/Gowalla_totalCheckins.txt` 已就位或运行下载脚本。
+- **OSM 下载问题**：
+  - 非交互式环境：脚本已支持自动处理，如果文件已存在会自动使用现有文件
+  - OSMnx FutureWarning：关于 `geometries` 模块的警告可忽略，不影响功能
+  - 大区域查询慢：大城市的 OSM 查询会自动分割为多个子查询，可能需要 10-30 分钟，请耐心等待
+  - 查询失败：可尝试使用 `--bbox` 参数指定更精确的边界框，或使用 `--osm-method overpass` 切换方法
 - **LLM 报错无 Key**：在 `.env` 中填 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` / `AIHUBMIX_API_KEY`。
 - **坐标偏差**：LLM 生成坐标可能有误，可改用 OSM 模式或人工校验。
 - **大规模 POI**：2-opt 会自动限迭代或跳过以避免过慢。
@@ -211,17 +223,24 @@ Location → POI 映射
   - 受序列长度和内容差异影响
 
 **Experiment 5 - POI 热度对齐指标**：
+
+**数据对比**：
+- **规划路线热度**：统计所有规划路线中每个 POI 的出现次数，按频率排序
+- **真实轨迹热度**：统计 Gowalla 真实用户轨迹中每个 POI 的访问次数，按频率排序
+- **对比方法**：比较两者的 Top-K 重叠、排名相关性、覆盖率
+
+**指标说明**：
 - **Top-K Overlap** (0-1，越高越好)
-  - Top-K 热门 POI 的重叠度
+  - 定义：`|top_k_planned ∩ top_k_real| / K`
   - 衡量规划路线是否包含真实用户最常访问的 POI
   - > 0.3 为不错的表现，> 0.5 说明规划很好地捕捉了热门 POI
 - **Spearman 相关系数** (-1 到 1，越接近 1 越好)
-  - POI 热度排名的相关性
+  - 定义：POI 热度排名的秩相关系数
   - 衡量规划路线和真实轨迹的 POI 热度排序是否一致
   - > 0.3 为正相关，> 0.5 为强相关
 - **Coverage at K** (0-1，越高越好)
-  - 规划路线覆盖真实 Top-K POI 的比例
-  - 衡量规划算法是否选择了真实用户最常访问的 POI
+  - 定义：`|top_k_real ∩ all_planned| / K`
+  - 衡量规划路线覆盖真实 Top-K POI 的比例
   - > 0.4 为不错的表现，> 0.6 说明覆盖了大部分热门 POI
 
 **典型表现**（路线级对齐）：
