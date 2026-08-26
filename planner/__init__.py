@@ -13,8 +13,8 @@ __all__ = [
     "evaluation",
     "experiments",
     "models",
+    "agent",
     "product",
     "storage",
     "visualization",
 ]
-

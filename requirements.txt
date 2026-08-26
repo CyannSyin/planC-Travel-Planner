@@ -6,7 +6,7 @@ requests
 tqdm
 overpy
 python-dotenv
-openai
+openai>=1.68.0
 matplotlib
 # Optional: for OSM data download (uncomment if using osmnx method)
 # osmnx
