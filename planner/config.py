@@ -95,27 +95,18 @@ CITY_BBOXES = {
 
 
 @dataclass
-class AblationConfig:
-    """Config for Experiment 4 — ablation."""
-
-    consider_category: bool = True
-    consider_popularity: bool = True
-    enable_two_opt: bool = True
-
-
-@dataclass
 class LLMConfig:
     """Config for LLM-based POI recommendation.
     
     LLM推荐配置：用于通过大语言模型推荐POI。
     """
     
-    enabled: bool = False  # 是否启用LLM推荐模式
+    enabled: bool = True  # 是否启用LLM推荐模式
     provider: str = "aihubmix"  # LLM提供商: openai, anthropic, google
-    model: str = "gpt-4o-mini"  # 模型名称
+    model: str = "gpt-4o-free"  # 模型名称
     temperature: float = 0.7  # 生成温度 (0.0-2.0)
     use_cache: bool = True  # 是否使用缓存
-    city: Optional[str] = None  # 目标城市名称
+    city: Optional[str] = "shanghai"  # 目标城市名称
     num_days: int = 3  # 旅行天数
     preferences: Optional[str] = None  # 用户偏好描述
     budget: Optional[str] = None  # 预算水平: budget, mid-range, luxury
@@ -135,11 +126,9 @@ class ExperimentConfig:
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     alignment: AlignmentConfig = field(default_factory=AlignmentConfig)
-    ablation: AblationConfig = field(default_factory=AblationConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
 
 
 # Default global config instance
 CONFIG = ExperimentConfig()
-
 

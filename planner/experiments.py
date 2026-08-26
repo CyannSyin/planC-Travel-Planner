@@ -5,7 +5,6 @@ High-level experiment runners.
 - Experiment 1: POI Clustering → 推断出天数（clusters）
 - Experiment 2: Daily Route Optimization
 - Experiment 3: Real-world Behavior Alignment（基于 Gowalla）- 路线级对齐
-- Experiment 4: Ablation Study
 - Experiment 5: POI Popularity Alignment（基于 Gowalla）- POI 热度对齐
 """
 
@@ -30,12 +29,8 @@ from .data_loader import (
 from .clustering import ClusteringResult, select_best_clustering
 from .routing import build_route
 from .evaluation import evaluate_route, evaluate_alignment, evaluate_poi_popularity_alignment
-from .ablation import run_ablation_experiments
 from .results_evaluation import evaluate_experiment_results, print_evaluation_summary, save_evaluation_report
 from .visualization import (
-    visualize_ablation_study, 
-    visualize_ablation_heatmap, 
-    visualize_ablation_comparison_table,
     visualize_experiment_1_clustering,
     visualize_experiment_1_clustering_map,
     visualize_experiment_2_routes,
@@ -80,6 +75,9 @@ def assign_pois_to_days(
     """
 
     pois = pois.copy()
+    # Keep the original filtered-POI position so real Gowalla trajectories and
+    # planned routes use the same identifier space during alignment.
+    pois["_source_index"] = list(range(len(pois)))
     pois["day"] = labels
     day_groups: Dict[int, pd.DataFrame] = {}
     unassigned_pois: List[pd.DataFrame] = []  # POIs removed due to max time constraint
@@ -381,14 +379,6 @@ def get_real_gowalla_trajectories(
         return []
 
 
-def experiment_4_ablation(pois: pd.DataFrame):
-    """Experiment 4 — ablation (category/popularity, 2-opt)."""
-
-    results = run_ablation_experiments(pois)
-    # run_ablation_experiments already returns a dict of dicts (not dataclass instances)
-    return results
-
-
 def run_all_experiments():
     """Convenience function to run all experiments end-to-end.
 
@@ -410,15 +400,16 @@ def run_all_experiments():
         print("=== Loading OSM POIs ===")
         pois_raw = load_osm_pois()
     
-    # Load Gowalla data (optional, only used in Experiment 3)
+    # Gowalla is optional. Only check its presence here; the city-filtered
+    # loader runs later and avoids loading the full multi-million-row file.
     print("\n=== Loading Gowalla Data (Optional) ===")
-    gowalla = load_gowalla_checkins()
-    if gowalla is None:
+    gowalla_path = Path(CONFIG.data.gowalla_checkins)
+    if not gowalla_path.exists():
         print("  ℹ️  Gowalla data not found - Experiment 3 will use synthetic data")
         print("  (To use real Gowalla data, place Gowalla_totalCheckins.txt in data/ directory)")
         gowalla_available = False
     else:
-        print(f"  ✓ Loaded {len(gowalla)} Gowalla check-ins")
+        print(f"  ✓ Gowalla data found: {gowalla_path}")
         gowalla_available = True
 
     print("\n=== POI Filtering ===")
@@ -596,7 +587,10 @@ def run_all_experiments():
             
             # Compare planned routes with real trajectories
             sample_day = next(iter(routes.keys()))
-            planned_route = routes[sample_day]
+            planned_route = [
+                int(day_pois[sample_day].iloc[position]["_source_index"])
+                for position in routes[sample_day]
+            ]
             
             # Calculate alignment metrics for multiple real trajectories
             all_metrics = []
@@ -622,28 +616,24 @@ def run_all_experiments():
         else:
             print("  ⚠️  No real Gowalla trajectories found, using synthetic data for demonstration")
             sample_day = next(iter(routes.keys()))
-            planned_route = routes[sample_day]
+            planned_route = [
+                int(day_pois[sample_day].iloc[position]["_source_index"])
+                for position in routes[sample_day]
+            ]
             real_traj = planned_route[::-1]  # Fallback: reversed route
             align_metrics = experiment_3_behavior_alignment(planned_route, real_traj)
             print("Alignment metrics (synthetic):", align_metrics)
     else:
         print("  ℹ️  Gowalla data not available, using synthetic trajectory")
         sample_day = next(iter(routes.keys()))
-        planned_route = routes[sample_day]
+        planned_route = [
+            int(day_pois[sample_day].iloc[position]["_source_index"])
+            for position in routes[sample_day]
+        ]
         real_traj = planned_route[::-1]  # Fallback: reversed route
         align_metrics = experiment_3_behavior_alignment(planned_route, real_traj)
         print("Alignment metrics (synthetic):", align_metrics)
 
-    print("\n=== Experiment 4: Ablation ===")
-    print("Testing impact of:")
-    print("  - Popularity feature in clustering (affects how POIs are assigned to days)")
-    print("  - 2-opt optimization in routing (affects daily route quality)")
-    ablation = experiment_4_ablation(pois)
-    for name, res in ablation.items():
-        print(f"{name}:")
-        print(f"  Days: {res.get('n_days', 0)}, Silhouette: {res.get('clustering_silhouette', 0):.3f}")
-        print(f"  Route length: {res['route_length_km']:.2f} km, Time efficiency: {res['time_efficiency']:.2f}")
-    
     print("\n=== Experiment 5: POI Popularity Alignment ===")
     print("Comparing POI popularity between planned routes and real-world behavior")
     
@@ -731,36 +721,6 @@ def run_all_experiments():
             print(f"Note: Could not generate Experiment 5 visualizations: {e}")
             print("  (This is optional - install matplotlib for visualization)")
     
-    # Visualize ablation results
-    print("\n=== Generating Ablation Visualizations ===")
-    try:
-        visualize_ablation_study(
-            ablation_results=ablation,
-            output_path=Path("results/ablation_visualization.pdf"),
-            show_plot=False,
-        )
-        visualize_ablation_heatmap(
-            ablation_results=ablation,
-            output_path=Path("results/ablation_heatmap_length.pdf"),
-            metric='route_length_km',
-            show_plot=False,
-        )
-        visualize_ablation_heatmap(
-            ablation_results=ablation,
-            output_path=Path("results/ablation_heatmap_efficiency.pdf"),
-            metric='time_efficiency',
-            show_plot=False,
-        )
-        visualize_ablation_comparison_table(
-            ablation_results=ablation,
-            output_path=Path("results/ablation_comparison_table.pdf"),
-            show_plot=False,
-        )
-        print("✓ All ablation visualizations generated successfully")
-    except Exception as e:
-        print(f"Note: Could not generate ablation visualizations: {e}")
-        print("  (This is optional - install matplotlib and seaborn for visualization)")
-    
     # Generate evaluation summary
     print("\n=== Generating Evaluation Report ===")
     summary = evaluate_experiment_results(
@@ -773,7 +733,6 @@ def run_all_experiments():
         routing_method="nn",
         use_two_opt=True,
         alignment_metrics=align_metrics,
-        ablation_results=ablation,
     )
     
     print_evaluation_summary(summary)
@@ -804,4 +763,3 @@ if __name__ == "__main__":
         print(f"Error running experiments: {e}")
         import traceback
         traceback.print_exc()
-

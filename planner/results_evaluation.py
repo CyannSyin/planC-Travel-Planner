@@ -40,10 +40,6 @@ class ExperimentSummary:
     alignment_overlap: Optional[float] = None
     alignment_dtw: Optional[float] = None
     
-    # Experiment 4 metrics (optional)
-    ablation_results: Optional[Dict] = None
-
-
 def evaluate_experiment_results(
     pois: pd.DataFrame,
     cluster_results: Dict,
@@ -54,7 +50,6 @@ def evaluate_experiment_results(
     routing_method: str,
     use_two_opt: bool,
     alignment_metrics: Optional[Dict] = None,
-    ablation_results: Optional[Dict] = None,
 ) -> ExperimentSummary:
     """Evaluate and summarize experiment results.
     
@@ -68,7 +63,6 @@ def evaluate_experiment_results(
         routing_method: Routing method used
         use_two_opt: Whether 2-opt was used
         alignment_metrics: Results from Experiment 3 (optional)
-        ablation_results: Results from Experiment 4 (optional)
     
     Returns:
         ExperimentSummary with aggregated metrics
@@ -128,7 +122,6 @@ def evaluate_experiment_results(
         alignment_jaccard=align_jaccard,
         alignment_overlap=align_overlap,
         alignment_dtw=align_dtw,
-        ablation_results=ablation_results,
     )
 
 
@@ -168,15 +161,6 @@ def print_evaluation_summary(summary: ExperimentSummary):
         print(f"  Overlap coefficient: {summary.alignment_overlap:.3f}")
         print(f"  DTW distance: {summary.alignment_dtw:.3f}")
     
-    if summary.ablation_results:
-        print("\n🧪 Ablation Study / 消融实验:")
-        for name, res in summary.ablation_results.items():
-            print(f"  {name}:")
-            print(f"    Days: {res.get('n_days', 0)}")
-            print(f"    Clustering silhouette: {res.get('clustering_silhouette', 0):.3f}")
-            print(f"    Route length: {res.get('route_length_km', 0):.2f} km")
-            print(f"    Time efficiency: {res.get('time_efficiency', 0):.2f}")
-    
     print("\n" + "=" * 60)
 
 
@@ -211,4 +195,3 @@ def save_evaluation_report(
         raise ValueError(f"Unsupported format: {format}")
     
     print(f"\n✓ Evaluation report saved to: {output_path}")
-
