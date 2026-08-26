@@ -13,6 +13,7 @@ env/
 data/Gowalla_totalCheckins.txt
 data/*.txt
 data/*.csv
+data/*.db
 !data/.gitkeep
 
 # Results
@@ -44,4 +45,3 @@ Thumbs.db
 
 # Logs
 *.log
-

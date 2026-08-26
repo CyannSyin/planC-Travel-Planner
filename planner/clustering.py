@@ -21,13 +21,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.cluster import DBSCAN, KMeans, SpectralClustering, AgglomerativeClustering
-from sklearn.metrics import (
-    calinski_harabasz_score,
-    davies_bouldin_score,
-    silhouette_score,
-)
-
 from .config import CONFIG
 
 
@@ -68,6 +61,111 @@ def _build_feature_matrix(pois: pd.DataFrame) -> np.ndarray:
     mean = features.mean(axis=0)
     std = features.std(axis=0) + 1e-8
     return (features - mean) / std
+
+
+def geographic_kmeans_labels(pois: pd.DataFrame, n_days: int) -> np.ndarray:
+    """Cluster POIs into travel days using local geographic coordinates.
+
+    The research pipeline mixes geography, rating, duration, and popularity in
+    one feature vector. For a user-facing itinerary, geographic compactness is
+    the primary concern, so this projection keeps distances in approximately
+    kilometers before applying KMeans.
+    """
+
+    if not {"lat", "lon"}.issubset(pois.columns):
+        raise ValueError("POIs must contain lat and lon columns")
+    if n_days < 1:
+        raise ValueError("n_days must be at least 1")
+    if len(pois) < n_days:
+        raise ValueError("The number of POIs must be at least the number of days")
+    if n_days == 1:
+        return np.zeros(len(pois), dtype=int)
+
+    lat = np.radians(pois["lat"].astype(float).to_numpy())
+    lon = np.radians(pois["lon"].astype(float).to_numpy())
+    mean_lat = float(lat.mean())
+    earth_radius_km = 6371.0
+    coordinates_km = np.column_stack(
+        (
+            earth_radius_km * lon * np.cos(mean_lat),
+            earth_radius_km * lat,
+        )
+    )
+    rng = np.random.default_rng(42)
+    best_labels = None
+    best_inertia = np.inf
+
+    # Deterministic multi-start KMeans++ implemented with NumPy keeps the
+    # product path independent from the heavier research-only sklearn stack.
+    for _ in range(20):
+        centers = [coordinates_km[int(rng.integers(len(coordinates_km)))]]
+        while len(centers) < n_days:
+            distances_sq = np.min(
+                np.sum((coordinates_km[:, None, :] - np.asarray(centers)[None, :, :]) ** 2, axis=2),
+                axis=1,
+            )
+            total = float(distances_sq.sum())
+            if total <= 0:
+                remaining = [
+                    index
+                    for index, point in enumerate(coordinates_km)
+                    if not any(np.array_equal(point, center) for center in centers)
+                ]
+                fallback_index = remaining[0] if remaining else len(centers) % len(coordinates_km)
+                centers.append(coordinates_km[fallback_index])
+            else:
+                centers.append(coordinates_km[int(rng.choice(len(coordinates_km), p=distances_sq / total))])
+        centers_array = np.asarray(centers, dtype=float)
+
+        for _ in range(100):
+            distances_sq = np.sum(
+                (coordinates_km[:, None, :] - centers_array[None, :, :]) ** 2,
+                axis=2,
+            )
+            labels = np.argmin(distances_sq, axis=1)
+            new_centers = centers_array.copy()
+            for cluster_id in range(n_days):
+                members = coordinates_km[labels == cluster_id]
+                if len(members):
+                    new_centers[cluster_id] = members.mean(axis=0)
+                else:
+                    farthest = int(np.argmax(np.min(distances_sq, axis=1)))
+                    new_centers[cluster_id] = coordinates_km[farthest]
+            if np.allclose(new_centers, centers_array, rtol=0, atol=1e-8):
+                centers_array = new_centers
+                break
+            centers_array = new_centers
+
+        final_distances_sq = np.sum(
+            (coordinates_km[:, None, :] - centers_array[None, :, :]) ** 2,
+            axis=2,
+        )
+        labels = np.argmin(final_distances_sq, axis=1)
+        inertia = float(np.sum(final_distances_sq[np.arange(len(labels)), labels]))
+        if inertia < best_inertia:
+            best_inertia = inertia
+            best_labels = labels.copy()
+
+    if best_labels is None:
+        raise RuntimeError("KMeans failed to produce labels")
+
+    # Coincident coordinates can collapse multiple centers. Keep the API
+    # contract of exactly one non-empty cluster per requested day by splitting
+    # the largest clusters deterministically when needed.
+    missing_clusters = sorted(set(range(n_days)) - set(best_labels.tolist()))
+    for missing_cluster in missing_clusters:
+        cluster_sizes = np.bincount(best_labels, minlength=n_days)
+        donor = int(np.argmax(cluster_sizes))
+        donor_indices = np.flatnonzero(best_labels == donor)
+        if len(donor_indices) <= 1:
+            raise RuntimeError("Unable to create a non-empty cluster for every day")
+        donor_center = coordinates_km[donor_indices].mean(axis=0)
+        farthest_offset = int(
+            np.argmax(np.sum((coordinates_km[donor_indices] - donor_center) ** 2, axis=1))
+        )
+        best_labels[donor_indices[farthest_offset]] = missing_cluster
+
+    return best_labels
 
 
 def sci_index(X: np.ndarray, labels: np.ndarray) -> float:
@@ -122,6 +220,12 @@ class ClusteringResult:
 def evaluate_clustering(X: np.ndarray, labels: np.ndarray, method: str) -> ClusteringResult:
     """Compute clustering metrics for given labels."""
 
+    from sklearn.metrics import (
+        calinski_harabasz_score,
+        davies_bouldin_score,
+        silhouette_score,
+    )
+
     # Ignore noise label -1 from DBSCAN for n_clusters
     valid_labels = labels[labels >= 0]
     unique = np.unique(valid_labels)
@@ -158,6 +262,8 @@ def evaluate_clustering(X: np.ndarray, labels: np.ndarray, method: str) -> Clust
 
 
 def run_kmeans(pois: pd.DataFrame, k: int) -> ClusteringResult:
+    from sklearn.cluster import KMeans
+
     X = _build_feature_matrix(pois)
     model = KMeans(n_clusters=k, n_init=10, random_state=42)
     labels = model.fit_predict(X)
@@ -165,6 +271,8 @@ def run_kmeans(pois: pd.DataFrame, k: int) -> ClusteringResult:
 
 
 def run_hac(pois: pd.DataFrame, k: int) -> ClusteringResult:
+    from sklearn.cluster import AgglomerativeClustering
+
     X = _build_feature_matrix(pois)
     model = AgglomerativeClustering(n_clusters=k)
     labels = model.fit_predict(X)
@@ -172,6 +280,8 @@ def run_hac(pois: pd.DataFrame, k: int) -> ClusteringResult:
 
 
 def run_spectral(pois: pd.DataFrame, k: int) -> ClusteringResult:
+    from sklearn.cluster import SpectralClustering
+
     X = _build_feature_matrix(pois)
     n_samples = X.shape[0]
     # Adjust n_neighbors to be at most n_samples - 1 (each point needs at least 1 neighbor)
@@ -188,6 +298,8 @@ def run_spectral(pois: pd.DataFrame, k: int) -> ClusteringResult:
 
 def run_dbscan(pois: pd.DataFrame, eps_km: float = 1.0, min_samples: int = 5) -> ClusteringResult:
     """Run DBSCAN using geographic distance (Haversine)."""
+
+    from sklearn.cluster import DBSCAN
 
     lat_lon = pois[["lat", "lon"]].astype(float).to_numpy()
     dist_mat = _haversine_distance_matrix(lat_lon)
@@ -273,5 +385,3 @@ def select_best_clustering(
             results[method] = best
 
     return results
-
-

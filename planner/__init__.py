@@ -1,15 +1,8 @@
 """
 Core package for the PlanC Travel Planner system.
 
-This package is organized into the following main modules:
-- config: global paths and experiment settings
-- data_loader: loaders and preprocessors for Gowalla and OSM POIs
-- clustering: POI clustering algorithms and clustering-quality metrics
-- routing: intra-day routing algorithms (Random, Rating-based, NN, 2-opt)
-- evaluation: metrics for routes and real-world behavior alignment
-- experiments: high-level experiment runners (Experiments 1–4)
-- ablation: utilities for ablation studies
-- visualization: visualization utilities for experiment results
+The product entry point is :func:`planner.product.create_trip_plan`.
+Research-oriented evaluation utilities remain available as separate modules.
 """
 
 __all__ = [
@@ -19,8 +12,9 @@ __all__ = [
     "routing",
     "evaluation",
     "experiments",
-    "ablation",
+    "models",
+    "agent",
+    "product",
+    "storage",
     "visualization",
 ]
-
-

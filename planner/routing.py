@@ -139,7 +139,6 @@ def two_opt(route: List[int], pois: pd.DataFrame, max_iter: int = 100) -> List[i
         # Reduce iterations for large routes
         max_iter = min(max_iter, 10)
     
-    best_dist = route_length_km(pois, best_route)
     improved = True
     iter_count = 0
 
@@ -147,33 +146,41 @@ def two_opt(route: List[int], pois: pd.DataFrame, max_iter: int = 100) -> List[i
         improved = False
         iter_count += 1
         
-        # For large routes, use sampling strategy
+        # Preserve the first POI, but allow improving the final edge of this
+        # open route. Compare only changed edges instead of recomputing the
+        # complete route for every candidate reversal.
         if n > 200:
-            # Sample only some edges to check
             step = max(1, n // 50)
-            indices_i = list(range(1, n - 2, step))
-            indices_j = list(range(2, n - 1, step))
+            indices_i = range(1, n - 1, step)
         else:
-            indices_i = list(range(1, n - 2))
-            indices_j = list(range(2, n - 1))
+            indices_i = range(1, n - 1)
         
         for i in indices_i:
-            for j in indices_j:
-                if j <= i or j - i == 1:
-                    continue
-                if j >= n - 1:
-                    continue
-                new_route = best_route[:]
-                new_route[i:j] = reversed(best_route[i:j])
-                new_dist = route_length_km(pois, new_route)
-                if new_dist + 1e-6 < best_dist:
-                    best_dist = new_dist
-                    best_route = new_route
+            for j in range(i + 1, n):
+                prev_poi = pois.iloc[best_route[i - 1]]
+                first_poi = pois.iloc[best_route[i]]
+                last_poi = pois.iloc[best_route[j]]
+                old_edges = haversine_km(
+                    prev_poi["lat"], prev_poi["lon"], first_poi["lat"], first_poi["lon"]
+                )
+                new_edges = haversine_km(
+                    prev_poi["lat"], prev_poi["lon"], last_poi["lat"], last_poi["lon"]
+                )
+                if j + 1 < n:
+                    next_poi = pois.iloc[best_route[j + 1]]
+                    old_edges += haversine_km(
+                        last_poi["lat"], last_poi["lon"], next_poi["lat"], next_poi["lon"]
+                    )
+                    new_edges += haversine_km(
+                        first_poi["lat"], first_poi["lon"], next_poi["lat"], next_poi["lon"]
+                    )
+
+                if new_edges + 1e-9 < old_edges:
+                    best_route[i : j + 1] = reversed(best_route[i : j + 1])
                     improved = True
-                    break  # Restart from beginning after improvement
+                    break
             if improved:
                 break
-        # 如果一轮中没有改进就停止
     return best_route
 
 
@@ -208,5 +215,4 @@ def build_route(
     if use_two_opt:
         return two_opt(base_route, pois_clean)
     return base_route
-
 

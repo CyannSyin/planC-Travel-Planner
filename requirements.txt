@@ -6,12 +6,10 @@ requests
 tqdm
 overpy
 python-dotenv
-openai
+openai>=1.68.0
 matplotlib
-seaborn
 # Optional: for OSM data download (uncomment if using osmnx method)
 # osmnx
 # Optional: for other LLM providers
 # anthropic
 # google-generativeai
-
