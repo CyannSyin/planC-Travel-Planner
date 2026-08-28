@@ -10,7 +10,48 @@ PlanC 将自然语言旅行需求转换为按天组织的行程计划，包含�
 | Web 应用 | `web/` + 仓库根目录 | 已连接 Python API、OpenAI 意图解析、规划器和 SQLite，支持真实生成与多轮重规划 |
 | 参数化 CLI | 仓库根目录 | 直接传入城市、天数、兴趣等结构化参数并输出 JSON |
 
-配置好 `.env` 并同时启动 API 与 Web 服务后，可以直接在浏览器中生成和持续调整真实行程。
+配置好 `.env` 并同时启动 API 与 Web 服务后，可以直接在浏览器中生成和持续调整真实行程。Web 前端不再使用静态 mock 数据；页面中的日期、地点、路线、地图标记、调整消息和 JSON 导出都来自后端返回的结构化行程。
+
+## 前后端连接概览
+
+浏览器只调用 Python API，不直接接触 OpenAI API Key。后端负责意图解析、约束合并、路线规划和 SQLite 持久化；前端负责展示行程和把用户的首轮需求、后续调整发送给后端。
+
+```text
+Browser / Vinext web app
+  -> POST /api/chat
+  -> FastAPI planner.api
+  -> TravelAgent + OpenAIIntentInterpreter
+  -> create_trip_plan
+  -> SQLite data/planner.db
+```
+
+当前 HTTP API：
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `GET` | `/health` | 健康检查，返回 API 是否可用 |
+| `POST` | `/api/chat` | 发送首轮需求或后续调整，返回 `session_id` 和规划结果 |
+| `POST` | `/api/reset` | 清空指定浏览器会话的多轮上下文 |
+
+`POST /api/chat` 请求体：
+
+```json
+{
+  "message": "去广州玩四天，喜欢历史和美食，每天不要超过六小时",
+  "session_id": null
+}
+```
+
+后续调整时继续带上同一个 `session_id`：
+
+```json
+{
+  "message": "每天十点再出发",
+  "session_id": "上一轮返回的 session_id"
+}
+```
+
+响应体中的 `turn.plan` 就是前端页面展示和导出的完整行程。
 
 ## 环境要求
 
@@ -115,16 +156,24 @@ python scripts/travel_agent.py "去广州玩四天，喜欢历史和美食，每
 - 生成的行程 JSON：默认保存到 `results/`
 - 规划结果数据库：默认保存到 `data/planner.db`
 
-## 启动 Web 前端
+## 本地联调 Web 前端
 
-Web 页面通过 Python API 调用同一个 TravelAgent 和规划器。先在仓库根目录启动后端：
+Web 页面通过 Python API 调用同一个 TravelAgent 和规划器。本地联调需要两个终端：一个跑后端 API，一个跑前端开发服务器。
+
+终端 1，在仓库根目录启动后端：
 
 ```bash
 source .venv/bin/activate
 uvicorn planner.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-再打开另一个终端启动前端：
+可以先检查 API 是否正常：
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+终端 2，启动前端：
 
 ```bash
 cd web
@@ -132,7 +181,9 @@ pnpm install
 pnpm dev
 ```
 
-启动成功后，在浏览器打开终端输出的 Local 地址（Vinext 通常为 `http://localhost:3000`）。前端默认连接 `http://localhost:8000`；需要使用其他 API 地址时，在 `web/.env.local` 设置：
+启动成功后，在浏览器打开终端输出的 Local 地址（Vinext 通常为 `http://localhost:3000`）。
+
+前端默认连接 `http://localhost:8000`；需要使用其他 API 地址时，复制 `web/.env.example` 到 `web/.env.local` 并修改：
 
 ```dotenv
 NEXT_PUBLIC_API_URL=https://你的-api-域名
@@ -149,7 +200,9 @@ NEXT_PUBLIC_API_URL=https://你的-api-域名
 
 浏览器只接触 API 地址，不会获得 OpenAI API Key。多轮会话目前保存在 API 进程内存中，生成的完整计划会继续写入 `data/planner.db`。重启 API 会清空对话上下文，但不会删除已保存的计划。
 
-若前端与 API 使用不同域名，把正式前端源站加入根目录 `.env` 的 `FRONTEND_ORIGINS`（多个地址用逗号分隔）。Sites 只能托管 Web 前端；正式环境还需要将 Python API 部署到支持 Python 的服务，并把其 HTTPS 地址配置为 `NEXT_PUBLIC_API_URL`。
+若前端与 API 使用不同域名，把正式前端源站加入根目录 `.env` 的 `FRONTEND_ORIGINS`（多个地址用逗号分隔），否则浏览器会因为 CORS 拒绝请求。
+
+Sites 只能托管 Web 前端；正式环境还需要将 Python API 部署到支持 Python 的服务，并把其 HTTPS 地址配置为 `NEXT_PUBLIC_API_URL`。不要把 OpenAI API Key 写入 `web/.env.local`，因为 `NEXT_PUBLIC_*` 变量会进入浏览器端 bundle。
 
 生产构建检查：
 
