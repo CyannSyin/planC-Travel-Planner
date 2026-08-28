@@ -1,0 +1,55 @@
+button:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.chat-row.error .bubble {
+  color: #9b4437;
+  background: #fff4f1;
+  border-color: #efc9c0;
+}
+
+.planning {
+  color: #667572;
+}
+
+.planning span {
+  display: inline-block;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.map-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  color: #75847e;
+  padding: 20px 28px;
+  border: 1px solid rgba(255,255,255,.65);
+  border-radius: 16px;
+  background: rgba(250,250,247,.72);
+  backdrop-filter: blur(5px);
+}
+
+.map-empty span {
+  font-size: 28px;
+  color: var(--teal);
+}
+
+.map-empty b {
+  font-size: 13px;
+}
+
+.map-empty small {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  50% { opacity: .3; }
+}

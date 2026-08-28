@@ -7,10 +7,10 @@ PlanC 将自然语言旅行需求转换为按天组织的行程计划，包含�
 | 入口 | 启动位置 | 当前能力 |
 |---|---|---|
 | AI 对话 CLI | 仓库根目录 | 已连接 OpenAI API 和 Python 规划器，支持真正的多轮重规划 |
-| Web 前端 | `web/` | 可点击的产品原型；支持页面切换、日期/地点选择和聊天界面演示，但尚未连接 Python 后端，回复与广州行程是前端模拟数据 |
+| Web 应用 | `web/` + 仓库根目录 | 已连接 Python API、OpenAI 意图解析、规划器和 SQLite，支持真实生成与多轮重规划 |
 | 参数化 CLI | 仓库根目录 | 直接传入城市、天数、兴趣等结构化参数并输出 JSON |
 
-因此，配置好 `.env` 后可以使用终端中的 AI 对话，但不会自动让 Web 页面连接后端。当前若要体验真实规划，请运行 `scripts/travel_agent.py`；`web/` 主要用于查看和操作前端原型。
+配置好 `.env` 并同时启动 API 与 Web 服务后，可以直接在浏览器中生成和持续调整真实行程。
 
 ## 环境要求
 
@@ -117,7 +117,14 @@ python scripts/travel_agent.py "去广州玩四天，喜欢历史和美食，每
 
 ## 启动 Web 前端
 
-Web 前端和 Python CLI 是两个独立入口。查看前端原型不需要 `.env` 或 OpenAI API Key。
+Web 页面通过 Python API 调用同一个 TravelAgent 和规划器。先在仓库根目录启动后端：
+
+```bash
+source .venv/bin/activate
+uvicorn planner.api:app --reload --host 127.0.0.1 --port 8000
+```
+
+再打开另一个终端启动前端：
 
 ```bash
 cd web
@@ -125,17 +132,24 @@ pnpm install
 pnpm dev
 ```
 
-启动成功后，在浏览器打开终端输出的 Local 地址（通常是 `http://localhost:5173`）。
+启动成功后，在浏览器打开终端输出的 Local 地址（Vinext 通常为 `http://localhost:3000`）。前端默认连接 `http://localhost:8000`；需要使用其他 API 地址时，在 `web/.env.local` 设置：
+
+```dotenv
+NEXT_PUBLIC_API_URL=https://你的-api-域名
+```
 
 当前页面可以进行以下本地交互：
 
 - 切换行程日期和选中地点
 - 点击地图标记
-- 输入或点击建议消息
+- 输入或点击建议消息并触发真实重规划
 - 返回“新行程”输入页
+- 导出完整行程 JSON
 - 在窄屏设备上使用响应式布局
 
-目前聊天回复、路线和地点均为 `web/app/page.tsx` 中的模拟数据；页面不会调用 OpenAI API、Python 规划器或 SQLite。“分享”“导出行程”等按钮也尚未接入真实功能。要实现端到端网页交互，下一步需要增加后端 HTTP API，并让 Web 前端通过 `fetch` 调用它。
+浏览器只接触 API 地址，不会获得 OpenAI API Key。多轮会话目前保存在 API 进程内存中，生成的完整计划会继续写入 `data/planner.db`。重启 API 会清空对话上下文，但不会删除已保存的计划。
+
+若前端与 API 使用不同域名，把正式前端源站加入根目录 `.env` 的 `FRONTEND_ORIGINS`（多个地址用逗号分隔）。Sites 只能托管 Web 前端；正式环境还需要将 Python API 部署到支持 Python 的服务，并把其 HTTPS 地址配置为 `NEXT_PUBLIC_API_URL`。
 
 生产构建检查：
 
@@ -338,6 +352,7 @@ python -m planner.experiments
 
 ```text
 planner/
+  api.py                Web HTTP API、CORS 与多轮会话管理
   agent.py              自然语言意图解析和多轮对话状态
   models.py             产品输入输出模型
   product.py            产品规划流水线
@@ -350,8 +365,9 @@ scripts/
   plan_trip.py          产品 CLI
   travel_agent.py       AI 多轮对话 CLI
 web/
-  app/page.tsx          当前 Web 交互原型和模拟数据
+  app/page.tsx          真实 API 驱动的 Web 应用
 tests/
+  test_api.py           API 会话复用与重置测试
   test_agent.py         对话状态和重规划测试
   test_product.py       产品端到端测试
 ```

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './integration.css';
 
 export const metadata:Metadata={
   title:'PlanC — AI 旅行规划师',
