@@ -1,18 +1,107 @@
 # PlanC Travel Planner — Product MVP
 
-PlanC 将城市 POI 转换成可以直接消费的多日旅行计划。产品入口接收城市、天数、偏好和每日时间预算，返回按天组织、包含到达时间和交通估算的 JSON，并将完整请求与结果保存到 SQLite。
+PlanC 将自然语言旅行需求转换为按天组织的行程计划，包含地点、到达时间、游玩时长和步行交通估算。LLM 负责理解并持续合并用户约束，地理聚类与路线算法负责生成确定性的日程，完整请求和结果保存到 SQLite。
 
-## AI Native 对话入口
+## 当前可用入口
 
-`dev/product-ai-native` 分支提供自然语言、多轮重规划入口。LLM 负责理解并持续合并用户约束，原有地理聚类和路线算法作为确定性规划工具执行。
+| 入口 | 启动位置 | 当前能力 |
+|---|---|---|
+| AI 对话 CLI | 仓库根目录 | 已连接 OpenAI API 和 Python 规划器，支持真正的多轮重规划 |
+| Web 前端 | `web/` | 可点击的产品原型；支持页面切换、日期/地点选择和聊天界面演示，但尚未连接 Python 后端，回复与广州行程是前端模拟数据 |
+| 参数化 CLI | 仓库根目录 | 直接传入城市、天数、兴趣等结构化参数并输出 JSON |
 
-先在 `.env` 中配置 `OPENAI_API_KEY`（OpenAI 兼容代理也可以同时配置 `OPENAI_BASE_URL`），然后运行：
+因此，配置好 `.env` 后可以使用终端中的 AI 对话，但不会自动让 Web 页面连接后端。当前若要体验真实规划，请运行 `scripts/travel_agent.py`；`web/` 主要用于查看和操作前端原型。
+
+## 环境要求
+
+- Python 3.10 或更高版本
+- Node.js 22.13 或更高版本（仅运行 Web 前端时需要）
+- pnpm（仅运行 Web 前端时需要）
+- 一个可用的 OpenAI API Key，或 OpenAI 兼容服务的 API Key 和 Base URL
+
+## 从零启动 AI 对话
+
+以下命令都在仓库根目录执行。
+
+### 1. 安装 Python 依赖
+
+macOS / Linux：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Windows PowerShell：
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+### 2. 配置 `.env`
+
+首次配置时复制示例文件；如果已经有 `.env`，不要再次复制覆盖：
+
+```bash
+cp env.example .env
+```
+
+把占位符替换为真实配置：
+
+```dotenv
+LLM_PROVIDER=openai
+OPENAI_API_KEY=你的真实_API_Key
+OPENAI_BASE_URL=
+LLM_MODEL=gpt-4o-mini
+AGENT_MODEL=gpt-4o-mini
+```
+
+`AGENT_MODEL` 必须是当前 API 项目有权使用、并支持 Responses API Structured Outputs 的模型。若不设置，程序依次使用 `LLM_MODEL` 和代码中的默认模型。OpenAI SDK 从环境变量读取 API Key，Key 不要提交到 Git、写进前端代码或分享给他人。可在 [OpenAI API Keys](https://platform.openai.com/api-keys) 创建或管理密钥。
+
+如果使用通用 OpenAI 兼容代理，还需按服务商说明配置。`OPENAI_BASE_URL`
+会同时作用于 AI 对话 CLI 和参数化规划入口：
+
+```dotenv
+LLM_PROVIDER=openai
+OPENAI_API_KEY=代理服务提供的_Key
+OPENAI_BASE_URL=https://代理服务地址/v1
+LLM_MODEL=代理支持的模型名
+AGENT_MODEL=代理支持的模型名
+```
+
+AIHubMix 也可以使用独立变量，避免与已有的 OpenAI Key 混淆：
+
+```dotenv
+LLM_PROVIDER=aihubmix
+AIHUBMIX_API_KEY=AIHubMix_Key
+OPENAI_BASE_URL=https://aihubmix.com/v1
+LLM_MODEL=AIHubMix_支持的模型名
+AGENT_MODEL=AIHubMix_支持且兼容_Responses_API_的模型名
+```
+
+`LLM_PROVIDER=aihubmix` 时 `OPENAI_BASE_URL` 是必填项，程序会在缺失时
+立即报错，防止把代理 Key 发送给 OpenAI 官方端点。
+
+修改 `.env` 后需要停止并重新启动程序。仅有 ChatGPT 账号或订阅不等同于已经配置了可用的 API Key。
+
+### 3. 启动可交互的旅行规划师
+
+直接进入多轮对话：
+
+```bash
+python scripts/travel_agent.py
+```
+
+也可以带上第一条需求启动：
 
 ```bash
 python scripts/travel_agent.py "去广州玩四天，喜欢历史和美食，每天不要超过六小时"
 ```
 
-生成计划后可以继续输入：
+生成计划后可继续输入调整要求，Agent 会保留当前城市、天数、预算、兴趣和节奏等约束并重新规划：
 
 ```text
 每天十点再出发
@@ -20,16 +109,43 @@ python scripts/travel_agent.py "去广州玩四天，喜欢历史和美食，每
 改成三天，但保留轻松的节奏
 ```
 
-Agent 会保留城市、预算、兴趣等上下文，合并新约束后重新调用规划引擎。使用 `/reset` 清空上下文，使用 `/quit` 退出。完整对话输出可以通过 `--json` 查看。
+- `/reset`：清空当前对话中的旅行约束
+- `/quit`：退出
+- `--json`：打印完整的结构化结果
+- 生成的行程 JSON：默认保存到 `results/`
+- 规划结果数据库：默认保存到 `data/planner.db`
 
-## 快速开始
+## 启动 Web 前端
+
+Web 前端和 Python CLI 是两个独立入口。查看前端原型不需要 `.env` 或 OpenAI API Key。
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp env.example .env
+cd web
+pnpm install
+pnpm dev
 ```
+
+启动成功后，在浏览器打开终端输出的 Local 地址（通常是 `http://localhost:5173`）。
+
+当前页面可以进行以下本地交互：
+
+- 切换行程日期和选中地点
+- 点击地图标记
+- 输入或点击建议消息
+- 返回“新行程”输入页
+- 在窄屏设备上使用响应式布局
+
+目前聊天回复、路线和地点均为 `web/app/page.tsx` 中的模拟数据；页面不会调用 OpenAI API、Python 规划器或 SQLite。“分享”“导出行程”等按钮也尚未接入真实功能。要实现端到端网页交互，下一步需要增加后端 HTTP API，并让 Web 前端通过 `fetch` 调用它。
+
+生产构建检查：
+
+```bash
+cd web
+pnpm build
+pnpm start
+```
+
+## 参数化 CLI
 
 使用已有的广州 LLM 缓存生成四日行程：
 
@@ -222,6 +338,7 @@ python -m planner.experiments
 
 ```text
 planner/
+  agent.py              自然语言意图解析和多轮对话状态
   models.py             产品输入输出模型
   product.py            产品规划流水线
   storage.py            SQLite 持久化
@@ -231,7 +348,11 @@ planner/
   experiments.py        可选研究评估入口
 scripts/
   plan_trip.py          产品 CLI
+  travel_agent.py       AI 多轮对话 CLI
+web/
+  app/page.tsx          当前 Web 交互原型和模拟数据
 tests/
+  test_agent.py         对话状态和重规划测试
   test_product.py       产品端到端测试
 ```
 
