@@ -52,19 +52,38 @@ cp env.example .env
 把占位符替换为真实配置：
 
 ```dotenv
+LLM_PROVIDER=openai
 OPENAI_API_KEY=你的真实_API_Key
+OPENAI_BASE_URL=
+LLM_MODEL=gpt-4o-mini
 AGENT_MODEL=gpt-4o-mini
 ```
 
 `AGENT_MODEL` 必须是当前 API 项目有权使用、并支持 Responses API Structured Outputs 的模型。若不设置，程序依次使用 `LLM_MODEL` 和代码中的默认模型。OpenAI SDK 从环境变量读取 API Key，Key 不要提交到 Git、写进前端代码或分享给他人。可在 [OpenAI API Keys](https://platform.openai.com/api-keys) 创建或管理密钥。
 
-如果使用 OpenAI 兼容代理，还需按服务商说明配置：
+如果使用通用 OpenAI 兼容代理，还需按服务商说明配置。`OPENAI_BASE_URL`
+会同时作用于 AI 对话 CLI 和参数化规划入口：
 
 ```dotenv
+LLM_PROVIDER=openai
 OPENAI_API_KEY=代理服务提供的_Key
 OPENAI_BASE_URL=https://代理服务地址/v1
+LLM_MODEL=代理支持的模型名
 AGENT_MODEL=代理支持的模型名
 ```
+
+AIHubMix 也可以使用独立变量，避免与已有的 OpenAI Key 混淆：
+
+```dotenv
+LLM_PROVIDER=aihubmix
+AIHUBMIX_API_KEY=AIHubMix_Key
+OPENAI_BASE_URL=https://aihubmix.com/v1
+LLM_MODEL=AIHubMix_支持的模型名
+AGENT_MODEL=AIHubMix_支持且兼容_Responses_API_的模型名
+```
+
+`LLM_PROVIDER=aihubmix` 时 `OPENAI_BASE_URL` 是必填项，程序会在缺失时
+立即报错，防止把代理 Key 发送给 OpenAI 官方端点。
 
 修改 `.env` 后需要停止并重新启动程序。仅有 ChatGPT 账号或订阅不等同于已经配置了可用的 API Key。
 

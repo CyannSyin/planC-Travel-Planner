@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol
 
 import pandas as pd
@@ -19,7 +20,7 @@ from .product import create_trip_plan
 from .storage import PlanRepository
 
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 @dataclass(frozen=True)
@@ -158,10 +159,16 @@ class OpenAIIntentInterpreter:
                 "Run: pip install -r requirements.txt"
             ) from error
 
-        resolved_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("AIHUBMIX_API_KEY")
+        provider = os.getenv("LLM_PROVIDER", "openai").strip().lower()
+        if provider == "aihubmix":
+            resolved_key = api_key or os.getenv("AIHUBMIX_API_KEY") or os.getenv("OPENAI_API_KEY")
+        else:
+            resolved_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("AIHUBMIX_API_KEY")
         if not resolved_key:
             raise ValueError("OPENAI_API_KEY or AIHUBMIX_API_KEY is required")
         resolved_base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        if provider == "aihubmix" and not resolved_base_url:
+            raise ValueError("OPENAI_BASE_URL is required when LLM_PROVIDER=aihubmix")
         client_kwargs: Dict[str, Any] = {"api_key": resolved_key}
         if resolved_base_url:
             client_kwargs["base_url"] = resolved_base_url

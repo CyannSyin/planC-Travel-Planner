@@ -14,8 +14,8 @@ from typing import Dict, List, Optional
 import pandas as pd
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Resolve the project-level file independently of the caller's working directory.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class LLMRecommender:
@@ -34,14 +34,18 @@ class LLMRecommender:
         """Initialize LLM recommender.
         
         Args:
-            provider: LLM provider ('openai', 'anthropic', 'google')
+            provider: LLM provider ('openai', 'aihubmix', 'anthropic', 'google')
             model: Model name (e.g., 'gpt-4', 'claude-3-opus-20240229')
             api_key: API key (if None, will read from environment)
             temperature: Temperature for generation (0.0-2.0)
         """
-        self.provider = provider or os.getenv("LLM_PROVIDER", "openai").lower()
+        self.provider = (provider or os.getenv("LLM_PROVIDER", "openai")).strip().lower()
         self.model = model or os.getenv("LLM_MODEL", "gpt-4")
-        self.temperature = temperature or float(os.getenv("LLM_TEMPERATURE", "0.7"))
+        self.temperature = (
+            temperature
+            if temperature is not None
+            else float(os.getenv("LLM_TEMPERATURE", "0.7"))
+        )
         
         # Get API key
         if api_key:
@@ -49,7 +53,7 @@ class LLMRecommender:
         else:
             # but allow a dedicated AIHUBMIX_API_KEY fallback.
             if self.provider == "aihubmix":
-                self.api_key = os.getenv("AIHUBMIX_API_KEY")
+                self.api_key = os.getenv("AIHUBMIX_API_KEY") or os.getenv("OPENAI_API_KEY")
             elif self.provider == "openai":
                 self.api_key = os.getenv("OPENAI_API_KEY")
             elif self.provider == "anthropic":
@@ -70,27 +74,22 @@ class LLMRecommender:
     
     def _init_client(self):
         """Initialize LLM client based on provider."""
-        # Support OpenAI-compatible proxy such as AiHubMix via base_url override.
-        if self.provider == "aihubmix":
+        # OpenAI-compatible providers share the same client and base URL behavior.
+        if self.provider in {"openai", "aihubmix"}:
             from openai import OpenAI
             import httpx
-            base_url = os.getenv("OPENAI_BASE_URL")  # e.g. https://api.aihubmix.com/v1
+
+            base_url = os.getenv("OPENAI_BASE_URL")
+            if self.provider == "aihubmix" and not base_url:
+                raise ValueError(
+                    "OPENAI_BASE_URL is required when LLM_PROVIDER=aihubmix"
+                )
             # 设置更长的超时时间（连接超时30秒，读取超时120秒）
             timeout = httpx.Timeout(30.0, connect=30.0, read=120.0)
-            return OpenAI(
-                api_key=self.api_key, 
-                base_url=base_url,
-                timeout=timeout
-            )
-        elif self.provider == "openai":
-            from openai import OpenAI
-            import httpx
-            # 设置更长的超时时间
-            timeout = httpx.Timeout(30.0, connect=30.0, read=120.0)
-            return OpenAI(
-                api_key=self.api_key,
-                timeout=timeout
-            )
+            client_kwargs = {"api_key": self.api_key, "timeout": timeout}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            return OpenAI(**client_kwargs)
         elif self.provider == "anthropic":
             try:
                 import anthropic
@@ -400,4 +399,3 @@ def load_llm_recommended_pois(
     print(f"Saved LLM recommendations to {cache_path}")
     
     return pois_df
-
